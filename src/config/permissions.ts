@@ -14,7 +14,8 @@ export type Action =
   | 'viewReports'
   | 'userManagement'
   | 'viewEntities'
-  | 'manageEntities';
+  | 'manageEntities'
+  | 'viewNotifications';
 
 export type Access = 'full' | 'assigned' | 'limited' | 'none';
 
@@ -33,4 +34,5 @@ export const PERMISSIONS: Record<Action, Record<Role, Access>> = {
   userManagement: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'none', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
   viewEntities: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'full' },
   manageEntities: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
+  viewNotifications: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'full' },
 };

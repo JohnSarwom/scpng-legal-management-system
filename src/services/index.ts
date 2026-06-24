@@ -1,3 +1,4 @@
+import { mockNotificationService } from './mock/notificationService';
 import { mockAuditService } from './mock/auditService';
 import { mockActivityService } from './mock/activityService';
 import { mockCaseService } from './mock/caseService';
@@ -17,6 +18,7 @@ export const activityService = mockActivityService;
 export const auditService = mockAuditService;
 export const searchService = mockSearchService;
 export const reportService = mockReportService;
+export const notificationService = mockNotificationService;
 
 // Future backend switch point:
 // export const caseService = supabaseCaseService;

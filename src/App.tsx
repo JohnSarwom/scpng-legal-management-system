@@ -34,6 +34,7 @@ const actionLabels: Record<Action, string> = {
   userManagement: 'User management',
   viewEntities: 'View entities',
   manageEntities: 'Manage entities',
+  viewNotifications: 'View notifications',
 };
 
 const statusChartColors = ['#C9D3DF', '#83002A', '#B13D65', '#D79018', '#2E9E6B', '#6B7280'];
@@ -1438,9 +1439,9 @@ function CorrespondenceFilters({ filters, setFilters, resetFilters }: { filters:
 
   return (
     <div className="mb-4 space-y-3">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+      <div className="grid gap-3 xl:grid-cols-[minmax(22rem,1fr)_auto] xl:items-center">
         <Input className="xl:max-w-md" placeholder="Search correspondence..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
-        <div className="flex flex-wrap items-center gap-3 xl:ml-auto">
+        <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap xl:justify-end">
           <div className="relative">
             <Button type="button" variant="secondary" onClick={() => setFilterOpen((value) => !value)} aria-expanded={filterOpen} className="h-11">
               <SlidersHorizontal className="h-4 w-4" />

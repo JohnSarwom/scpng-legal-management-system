@@ -185,6 +185,30 @@ export interface AuditLog {
   recordRef: string;
 }
 
+export type NotificationType =
+  | 'case_created'
+  | 'case_assigned'
+  | 'case_status_changed'
+  | 'document_uploaded'
+  | 'correspondence_pending_approval'
+  | 'correspondence_approved'
+  | 'correspondence_rejected';
+
+export type NotificationEntityType = 'case' | 'document' | 'correspondence';
+
+export interface Notification {
+  id: string;
+  recipientId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  entityType: NotificationEntityType;
+  entityId: string;
+  linkTo: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export type SearchResult =
   | { kind: 'entity'; record: Entity; context: string }
   | { kind: 'case'; record: Case; context: string }

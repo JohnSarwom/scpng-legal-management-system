@@ -1,10 +1,13 @@
-import { useState, type FormEvent } from 'react';
-import { BarChart3, BriefcaseBusiness, Building2, FileText, GitBranch, LayoutDashboard, Search, ShieldCheck, SquareLibrary, Users, Bell, LogOut, MessageSquarePlus, Send, Star, X } from 'lucide-react';
+import { useRef, useState, type FormEvent } from 'react';
+import { BarChart3, BriefcaseBusiness, Building2, FileText, GitBranch, LayoutDashboard, Search, ShieldCheck, SquareLibrary, Users, Bell, LogOut, MessageSquarePlus, Send, Star, X, CheckCheck, BriefcaseBusiness as CaseIcon, FileText as DocIcon, Mail } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { ROLES } from '@/config/enums';
 import { useSession } from '@/context/useSession';
 import { usePermission } from '@/hooks/usePermission';
+import { NotificationProvider } from '@/context/NotificationContext';
+import { useNotifications } from '@/context/useNotifications';
 import { Button, Select, Textarea } from './ui';
+import type { Notification } from '@/types';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -102,15 +105,126 @@ function FeedbackButton() {
   );
 }
 
-export function AppShell() {
+const NOTIF_ICONS: Record<Notification['entityType'], typeof CaseIcon> = {
+  case: CaseIcon,
+  document: DocIcon,
+  correspondence: Mail,
+};
+
+const NOTIF_LABELS: Record<Notification['type'], string> = {
+  case_created: 'New case',
+  case_assigned: 'Assigned to you',
+  case_status_changed: 'Status changed',
+  document_uploaded: 'Document uploaded',
+  correspondence_pending_approval: 'Pending approval',
+  correspondence_approved: 'Approved',
+  correspondence_rejected: 'Rejected',
+};
+
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+  const navigate = useNavigate();
+
+  function handleNotifClick(notif: Notification) {
+    if (!notif.read) void markRead(notif.id);
+    setOpen(false);
+    navigate(notif.linkTo);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="relative grid h-10 w-10 place-items-center rounded-full transition hover:bg-white/15"
+        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+      >
+        <Bell className="h-5 w-5 shrink-0 stroke-[2.25]" />
+        {unreadCount > 0 && (
+          <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          {/* backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          {/* panel */}
+          <div
+            ref={panelRef}
+            className="absolute right-0 top-12 z-50 w-[min(400px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-white shadow-lift"
+          >
+            <div className="flex items-center justify-between border-b border-line bg-maroon-800 px-4 py-3 text-white">
+              <div>
+                <p className="text-sm font-bold">Notifications</p>
+                <p className="mt-0.5 text-xs text-white/70">{unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}</p>
+              </div>
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void markAllRead()}
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/15 hover:text-white"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  Mark all read
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto divide-y divide-line">
+              {notifications.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-muted">No notifications yet.</p>
+              ) : (
+                notifications.map((notif) => {
+                  const Icon = NOTIF_ICONS[notif.entityType];
+                  return (
+                    <button
+                      key={notif.id}
+                      type="button"
+                      onClick={() => handleNotifClick(notif)}
+                      className={`w-full px-4 py-3 text-left transition hover:bg-paper flex items-start gap-3 ${notif.read ? 'opacity-60' : ''}`}
+                    >
+                      <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${notif.read ? 'bg-paper text-muted' : 'bg-maroon-50 text-maroon-800'}`}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-semibold uppercase tracking-wide ${notif.read ? 'text-muted' : 'text-maroon-700'}`}>
+                            {NOTIF_LABELS[notif.type]}
+                          </span>
+                          {!notif.read && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />}
+                        </div>
+                        <p className="mt-0.5 text-sm font-semibold text-ink line-clamp-1">{notif.title}</p>
+                        <p className="mt-0.5 text-xs text-muted line-clamp-2">{notif.body}</p>
+                        <p className="mt-1 text-[11px] text-muted/70">
+                          {new Date(notif.createdAt).toLocaleDateString('en-PG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AppShellInner() {
   const { currentUser, setRole } = useSession();
   const { can } = usePermission();
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-paper">
       <aside className="fixed inset-y-0 left-0 z-40 flex w-24 flex-col items-center overflow-hidden rounded-r-3xl bg-maroon-950 py-5 text-white shadow-lift">
-        <NavLink to="/" className="mb-5 grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-white p-2 shadow-soft ring-2 ring-white/15" aria-label="SCPNG Legal dashboard">
-          <img src="/images/scpng-official-logo.png" alt="SCPNG logo" className="max-h-full max-w-full object-contain" />
+        <NavLink to="/" className="mb-5 grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-white p-1 shadow-soft ring-2 ring-white/15" aria-label="SCPNG Legal dashboard">
+          <img src="/images/scpng-official-logo.png" alt="SCPNG logo" className="h-[85%] w-[85%] object-contain" />
         </NavLink>
         <nav className="sidebar-scrollable flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto overflow-x-hidden px-2 pb-3">
           {nav.map((item) => {
@@ -143,7 +257,7 @@ export function AppShell() {
               <Search className="h-5 w-5 shrink-0 stroke-[2.25]" /> Search cases, documents, correspondence, entities...
             </button>
             <div className="ml-auto flex shrink-0 items-center gap-5">
-              <Bell className="h-5 w-5 shrink-0 stroke-[2.25]" />
+              <NotificationBell />
               <div className="hidden items-center gap-3 rounded-2xl bg-white/10 px-3 py-2 lg:flex">
                 <Users className="h-4 w-4 shrink-0 stroke-[2.35]" />
                 <Select value={currentUser.role} onChange={(event) => setRole(event.target.value as typeof currentUser.role)} className="h-9 w-52 border-white/20 bg-white text-ink">
@@ -160,5 +274,14 @@ export function AppShell() {
       </div>
       <FeedbackButton />
     </div>
+  );
+}
+
+export function AppShell() {
+  const { currentUser } = useSession();
+  return (
+    <NotificationProvider userId={currentUser.id}>
+      <AppShellInner />
+    </NotificationProvider>
   );
 }
