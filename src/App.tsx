@@ -1878,9 +1878,9 @@ function EntitiesPage() {
         description="Capital-market entities mirrored from the Licensing system. Cases, documents, and correspondence reference this register by entity ID."
         action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New Entity</Button> : <Badge tone="muted">Entity management restricted</Badge>}
       />
-      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
+      <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(22rem,1fr)_auto] xl:items-center">
         <Input className="xl:max-w-md" placeholder="Search entities..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
-        <div className="flex flex-wrap items-center gap-3 xl:ml-auto">
+        <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap xl:justify-end">
           <Select className="w-48" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} aria-label="Filter by status"><option value="">All statuses</option>{ENTITY_STATUSES.map((item) => <option key={item}>{item}</option>)}</Select>
           <Select className="w-48" value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })} aria-label="Filter by type"><option value="">All types</option>{ENTITY_TYPES.map((item) => <option key={item}>{item}</option>)}</Select>
           <Button variant="secondary" type="button" onClick={() => setFilters(emptyEntityFilters)}>Reset</Button>
