@@ -12,7 +12,7 @@ import { useCorrespondence, useCorrespondenceItem, useCorrespondenceMutations } 
 import { useDocument, useDocumentMutations, useDocuments } from '@/hooks/useDocuments';
 import { useEntities, useEntity, useEntityMutations } from '@/hooks/useEntities';
 import { usePermission } from '@/hooks/usePermission';
-import { useAudit, useSummary } from '@/hooks/useReports';
+import { useAudit, useEntityLegalExposure, useOfficerWorkload, useOutstandingCorrespondence, useSummary } from '@/hooks/useReports';
 import { useSearch } from '@/hooks/useSearch';
 import { useCreateNote, useNotes } from '@/hooks/useNotes';
 import { useActivities } from '@/hooks/useActivities';
@@ -462,17 +462,17 @@ function CaseFilters({ filters, setFilters, resetFilters, users }: { filters: Ca
 
   return (
     <div className="mb-4 space-y-3">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-        <Input className="xl:max-w-md" placeholder="Search cases..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
-        <div className="flex flex-wrap items-center gap-3 xl:ml-auto">
-          <div className="relative">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <Input className="lg:max-w-md" placeholder="Search cases..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
+        <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap lg:ml-auto">
+          <div className="relative shrink-0">
             <Button type="button" variant="secondary" onClick={() => setFilterOpen((value) => !value)} aria-expanded={filterOpen} className="h-11">
               <SlidersHorizontal className="h-4 w-4" />
               Filters
               {filterCount > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-maroon-700 px-1.5 text-xs font-black text-white">{filterCount}</span> : null}
             </Button>
             {filterOpen ? (
-              <div className="absolute right-0 top-12 z-30 w-[min(420px,calc(100vw-3rem))] rounded-lg border border-line bg-white p-4 shadow-lift">
+              <div className="absolute left-0 top-12 z-50 w-[min(420px,calc(100vw-3rem))] rounded-lg border border-line bg-white p-4 shadow-lift">
                 <div className="mb-4 flex items-center justify-between">
                   <p className="text-sm font-bold text-ink">Filters</p>
                   <button type="button" onClick={() => setFilterOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-maroon-100 hover:text-maroon-900" aria-label="Close filters">
@@ -508,16 +508,16 @@ function CaseFilters({ filters, setFilters, resetFilters, users }: { filters: Ca
               </div>
             ) : null}
           </div>
-          <Select className="w-44" value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })} aria-label="Sort cases">
-            <option value="">Newest registered</option>
-            <option value="oldest">Oldest registered</option>
-            <option value="caseNumber">Case number</option>
+          <Select className="w-28 shrink-0" value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })} aria-label="Sort cases">
+            <option value="">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="caseNumber">Case #</option>
             <option value="status">Status</option>
           </Select>
-          <label className="flex h-11 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink">
+          <label className="flex h-11 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink shrink-0">
             <input type="checkbox" checked={Boolean(filters.includeArchived)} onChange={(event) => setFilters({ ...filters, includeArchived: event.target.checked })} /> Archived
           </label>
-          <Button variant="secondary" type="button" onClick={resetFilters}>Reset</Button>
+          <Button variant="secondary" type="button" onClick={resetFilters} className="shrink-0">Reset</Button>
         </div>
       </div>
       {activeFilters.length > 0 ? (
@@ -1066,23 +1066,24 @@ function DocumentFilters({ filters, setFilters, resetFilters }: { filters: Docum
     filters.dateFrom ? { key: 'dateFrom', label: `From: ${formatDate(filters.dateFrom)}`, clear: () => setFilters((value) => ({ ...value, dateFrom: '' })) } : null,
     filters.dateTo ? { key: 'dateTo', label: `To: ${formatDate(filters.dateTo)}`, clear: () => setFilters((value) => ({ ...value, dateTo: '' })) } : null,
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
+  const filterCount = activeFilters.length;
 
   return (
     <div className="mb-4 space-y-3">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-        <Input className="xl:max-w-md" placeholder="Search documents..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
-        <div className="flex flex-wrap items-center gap-3 xl:ml-auto">
-          <div className="relative">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <Input className="lg:max-w-md" placeholder="Search documents..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
+        <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap lg:ml-auto">
+          <div className="relative shrink-0">
             <Button type="button" variant="secondary" onClick={() => setFilterOpen((value) => !value)} aria-expanded={filterOpen} className="h-11">
               <SlidersHorizontal className="h-4 w-4" />
               Filters
-              {activeFilters.length > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-maroon-700 px-1.5 text-xs font-black text-white">{activeFilters.length}</span> : null}
+              {filterCount > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-maroon-700 px-1.5 text-xs font-black text-white">{filterCount}</span> : null}
             </Button>
             {filterOpen ? (
-              <div className="absolute right-0 top-12 z-30 w-[min(420px,calc(100vw-3rem))] rounded-lg border border-line bg-white p-4 shadow-lift">
+              <div className="absolute right-0 top-12 z-50 w-[min(420px,calc(100vw-3rem))] rounded-lg border border-line bg-white p-4 shadow-lift">
                 <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm font-bold text-ink">Document filters</p>
-                  <button type="button" onClick={() => setFilterOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-maroon-100 hover:text-maroon-900" aria-label="Close document filters">
+                  <p className="text-sm font-bold text-ink">Filters</p>
+                  <button type="button" onClick={() => setFilterOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-maroon-100 hover:text-maroon-900" aria-label="Close filters">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -1107,13 +1108,13 @@ function DocumentFilters({ filters, setFilters, resetFilters }: { filters: Docum
               </div>
             ) : null}
           </div>
-          <Select className="w-44" value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })} aria-label="Sort documents">
+          <Select className="w-32 shrink-0" value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })} aria-label="Sort documents">
             <option value="">Newest uploaded</option>
             <option value="oldest">Oldest uploaded</option>
             <option value="documentNumber">Document number</option>
             <option value="title">Title</option>
           </Select>
-          <Button variant="secondary" type="button" onClick={resetFilters}>Reset</Button>
+          <Button variant="secondary" type="button" onClick={resetFilters} className="shrink-0">Reset</Button>
         </div>
       </div>
       {activeFilters.length > 0 ? (
@@ -1439,19 +1440,19 @@ function CorrespondenceFilters({ filters, setFilters, resetFilters }: { filters:
 
   return (
     <div className="mb-4 space-y-3">
-      <div className="grid gap-3 xl:grid-cols-[minmax(22rem,1fr)_auto] xl:items-center">
-        <Input className="xl:max-w-md" placeholder="Search correspondence..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
-        <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap xl:justify-end">
-          <div className="relative">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <Input className="lg:max-w-md" placeholder="Search correspondence..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
+        <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap lg:ml-auto">
+          <div className="relative shrink-0">
             <Button type="button" variant="secondary" onClick={() => setFilterOpen((value) => !value)} aria-expanded={filterOpen} className="h-11">
               <SlidersHorizontal className="h-4 w-4" />
               Filters
               {activeFilters.length > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-maroon-700 px-1.5 text-xs font-black text-white">{activeFilters.length}</span> : null}
             </Button>
             {filterOpen ? (
-              <div className="absolute right-0 top-12 z-30 w-[min(420px,calc(100vw-3rem))] rounded-lg border border-line bg-white p-4 shadow-lift">
+              <div className="absolute right-0 top-12 z-50 w-[min(420px,calc(100vw-3rem))] rounded-lg border border-line bg-white p-4 shadow-lift">
                 <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm font-bold text-ink">Correspondence filters</p>
+                  <p className="text-sm font-bold text-ink">Filters</p>
                   <button type="button" onClick={() => setFilterOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-maroon-100 hover:text-maroon-900" aria-label="Close correspondence filters">
                     <X className="h-4 w-4" />
                   </button>
@@ -1485,13 +1486,13 @@ function CorrespondenceFilters({ filters, setFilters, resetFilters }: { filters:
               </div>
             ) : null}
           </div>
-          <Select className="w-44" value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })} aria-label="Sort correspondence">
+          <Select className="w-44 shrink-0" value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })} aria-label="Sort correspondence">
             <option value="">Newest date</option>
             <option value="oldest">Oldest date</option>
             <option value="correspondenceNumber">Letter no.</option>
             <option value="status">Status</option>
           </Select>
-          <Button variant="secondary" type="button" onClick={resetFilters}>Reset</Button>
+          <Button variant="secondary" type="button" onClick={resetFilters} className="shrink-0">Reset</Button>
         </div>
       </div>
       {activeFilters.length > 0 ? (
@@ -1743,48 +1744,437 @@ function compactNodeLabel(label?: string) {
   return label.replace('-2026-', '-');
 }
 
+function ReportStatCard({ label, value, note }: { label: string; value: number; note?: string }) {
+  return (
+    <Card className="p-5">
+      <p className="text-sm font-semibold text-muted">{label}</p>
+      <p className="tnum mt-3 text-3xl font-black text-maroon-800">{value}</p>
+      {note && <p className="mt-1 text-xs text-muted">{note}</p>}
+    </Card>
+  );
+}
+
 function ReportsPage() {
-  const { data: summary = {} } = useSummary();
+  const [tab, setTab] = useState<'executive' | 'cases' | 'documents' | 'correspondence' | 'activity' | 'audit'>('executive');
+  const [openCasesOfficer, setOpenCasesOfficer] = useState('');
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditModule, setAuditModule] = useState('');
+  const [auditAction, setAuditAction] = useState('');
+  const [auditDateFrom, setAuditDateFrom] = useState('');
+  const [auditDateTo, setAuditDateTo] = useState('');
+
+  const { currentUser, users } = useSession();
+  const { can } = usePermission();
+  const isLimited = can('viewReports') === 'limited';
+  const isLM = currentUser.role === 'Legal Manager';
+  const isCEOLevel = ['CEO', 'General Counsel'].includes(currentUser.role);
+
   const cases = useCases().data ?? [];
   const docs = useDocuments().data ?? [];
   const corr = useCorrespondence().data ?? [];
   const audit = useAudit().data ?? [];
-  const { can } = usePermission();
-  const caseStatus = CASE_STATUSES.map((status) => ({ name: status, value: cases.filter((item) => item.status === status).length })).filter((item) => item.value);
-  const docCategory = DOCUMENT_CATEGORIES.map((category) => ({ name: category.replace(' Documents', ''), value: docs.filter((item) => item.category === category).length })).filter((item) => item.value);
-  const caseTotal = caseStatus.reduce((total, item) => total + item.value, 0);
+  const { data: entityExposure = [] } = useEntityLegalExposure();
+  const { data: officerWorkload = [] } = useOfficerWorkload();
+  const { data: outstanding } = useOutstandingCorrespondence();
+
+  // ── Derived: Cases ──
+  const openCases = cases.filter((c) => !['Closed', 'Archived'].includes(c.status));
+  const highRisk = openCases.filter((c) => c.isConfidential || c.caseType === 'Litigation');
+  const courtMatters = cases.filter((c) => c.caseType === 'Litigation');
+  const assignedToMe = openCases.filter((c) => c.responsibleOfficerId === currentUser.id);
+  const underReview = cases.filter((c) => c.status === 'Under Review');
+  const recentlyOpened = cases.filter((c) => c.dateOpened >= '2026-06-18');
+  const caseStatus = CASE_STATUSES.map((s) => ({ name: s, value: cases.filter((c) => c.status === s).length })).filter((x) => x.value > 0);
+  const caseType = CASE_TYPES.map((t) => ({ name: t, value: cases.filter((c) => c.caseType === t).length })).filter((x) => x.value > 0);
+  const filteredOpenCases = openCases.filter((c) => !openCasesOfficer || c.responsibleOfficerId === openCasesOfficer);
+
+  // ── Derived: Documents ──
+  const docCategory = DOCUMENT_CATEGORIES.map((cat) => ({ name: cat.replace(' Documents', ''), value: docs.filter((d) => d.category === cat).length })).filter((x) => x.value > 0);
+  const monthlyUploads = useMemo(() => {
+    const months: Record<string, number> = {};
+    docs.forEach((d) => { const m = d.uploadDate.slice(0, 7); months[m] = (months[m] || 0) + 1; });
+    return Object.entries(months).sort().map(([name, value]) => ({ name: name.replace('2026-', ''), value }));
+  }, [docs]);
+  const expiringDocs = docs.filter((d) => d.expiryDate && d.expiryDate <= '2026-09-30');
+
+  // ── Derived: Correspondence ──
+  const corrThisMonth = corr.filter((c) => c.date.startsWith('2026-06'));
+  const incomingCorr = corr.filter((c) => c.direction === 'Incoming');
+  const awaitingCorr = corr.filter((c) => c.status === 'Awaiting Response');
+  const corrDirectionData = [
+    { name: 'Incoming', value: incomingCorr.length },
+    { name: 'Outgoing', value: corr.filter((c) => c.direction === 'Outgoing').length },
+  ];
+
+  // ── Derived: Officer workload (limited roles see only themselves) ──
+  const officerData = isLimited
+    ? officerWorkload.filter((row) => row.officerId === currentUser.id)
+    : officerWorkload;
+  const officerCasesChart = officerData.filter((r) => r.openCases > 0).map((r) => ({ name: r.name.split(' ')[0], value: r.openCases }));
+  const officerActivityChart = officerData.filter((r) => r.activities > 0).map((r) => ({ name: r.name.split(' ')[0], value: r.activities }));
+
+  // ── Derived: Audit ──
+  const filteredAudit = audit.filter((e) => {
+    if (auditSearch && !e.user.toLowerCase().includes(auditSearch.toLowerCase()) && !e.recordRef.toLowerCase().includes(auditSearch.toLowerCase())) return false;
+    if (auditModule && e.module !== auditModule) return false;
+    if (auditAction && e.action !== auditAction) return false;
+    if (auditDateFrom && e.date.slice(0, 10) < auditDateFrom) return false;
+    if (auditDateTo && e.date.slice(0, 10) > auditDateTo) return false;
+    return true;
+  });
+
+  const subTabs: { id: typeof tab; label: string }[] = [
+    { id: 'executive', label: 'Executive' },
+    { id: 'cases', label: 'Cases' },
+    { id: 'documents', label: 'Documents' },
+    { id: 'correspondence', label: 'Correspondence' },
+    { id: 'activity', label: 'User Activity' },
+    { id: 'audit', label: 'Audit' },
+  ];
+
   return (
     <>
       <PageHeader
         title="Reports"
-        description={can('viewReports') === 'limited' ? 'Limited report view for the current role.' : 'Executive, case, document, correspondence, user activity, and audit reports.'}
-        action={<Button variant="secondary" onClick={() => csvDownload('audit.csv', audit.map((entry) => ({ date: entry.date, user: entry.user, action: entry.action, module: entry.module, recordRef: entry.recordRef })))}>Export Audit CSV</Button>}
+        description={isLimited ? 'Limited view — showing data within your access scope.' : 'Executive, case, document, correspondence, user activity, and audit reports.'}
       />
-      <div className="grid gap-4 md:grid-cols-4">
-        {Object.entries(summary).slice(0, 4).map(([key, value]) => (
-          <Card key={key} className="p-5">
-            <p className="text-sm font-semibold capitalize text-muted">{key.replace(/([A-Z])/g, ' $1')}</p>
-            <p className="tnum mt-3 text-3xl font-black text-maroon-800">{value}</p>
-          </Card>
+
+      {/* Sub-module nav */}
+      <div className="mb-6 flex gap-2 overflow-auto pb-1">
+        {subTabs.map((t) => (
+          <Button key={t.id} variant={tab === t.id ? 'primary' : 'secondary'} onClick={() => setTab(t.id)}>
+            {t.label}
+          </Button>
         ))}
       </div>
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="text-lg font-bold">Cases by Status</h2>
-          <p className="text-sm text-muted">Round status view of legal matters</p>
-          <UniformDonutChart data={caseStatus} colors={statusChartColors} centerValue={caseTotal} />
-        </Card>
-        <Card className="p-5">
-          <h2 className="mb-4 text-lg font-bold">Documents by Category</h2>
-          <div className="h-72">
-            <UniformBarChart data={docCategory} colors={documentChartColors} hideXAxis />
+
+      {/* ══ EXECUTIVE ══ */}
+      {tab === 'executive' && (
+        <>
+          {/* CEO / GC view */}
+          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">Legal Overview</p>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <ReportStatCard label="Open Cases" value={openCases.length} />
+            <ReportStatCard label="High-Risk Matters" value={highRisk.length} note="Confidential or Litigation type" />
+            <ReportStatCard label="Court Matters" value={courtMatters.length} note="Litigation type cases" />
+            <ReportStatCard label="Correspondence This Month" value={corrThisMonth.length} />
           </div>
-        </Card>
-      </div>
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Outstanding Correspondence</h2><LinkedCorrespondence items={corr.filter((item) => item.status === 'Awaiting Response')} /></Card>
-        <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Audit Trail</h2><Table><thead><tr><Th>Date</Th><Th>User</Th><Th>Action</Th><Th>Module</Th><Th>Record</Th></tr></thead><tbody>{audit.slice(0, 8).map((entry) => <tr key={entry.id}><Td>{formatDate(entry.date)}</Td><Td>{entry.user}</Td><Td>{entry.action}</Td><Td>{entry.module}</Td><Td>{entry.recordRef}</Td></tr>)}</tbody></Table></Card>
-      </div>
+          <div className="mt-6 grid gap-5 xl:grid-cols-2">
+            <Card className="p-5">
+              <h2 className="text-lg font-bold">Cases by Status</h2>
+              <p className="text-sm text-muted">Distribution across all {cases.length} matters</p>
+              <UniformDonutChart data={caseStatus} colors={statusChartColors} centerValue={cases.length} centerLabel="Total" />
+            </Card>
+            <Card className="p-5">
+              <h2 className="mb-2 text-lg font-bold">Entity Legal Exposure</h2>
+              <p className="mb-4 text-sm text-muted">Entities ranked by open case count. Click Map to view relationships.</p>
+              <Table>
+                <thead><tr><Th>Entity</Th><Th>Open Cases</Th><Th>Documents</Th><Th>{' '}</Th></tr></thead>
+                <tbody>
+                  {entityExposure.slice(0, 6).map((row) => (
+                    <tr key={row.entityId} className="hover:bg-maroon-100/30">
+                      <Td className="font-semibold">{row.entityName}</Td>
+                      <Td><Badge tone={row.openCases >= 3 ? 'red' : row.openCases >= 1 ? 'amber' : 'muted'}>{row.openCases}</Badge></Td>
+                      <Td>{row.documents}</Td>
+                      <Td><Link to={`/search?focus=entity:${row.entityId}`} className="text-xs font-semibold text-maroon-700 hover:underline">Map →</Link></Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
+          </div>
+
+          {/* Legal Manager operational view */}
+          {(isLM || isCEOLevel) && (
+            <div className="mt-8">
+              <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">Legal Manager Operational View</p>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <ReportStatCard label="Open Cases" value={openCases.length} />
+                <ReportStatCard label="Assigned to Me" value={assignedToMe.length} />
+                <ReportStatCard label="Under Review" value={underReview.length} />
+                <ReportStatCard label="Opened This Week" value={recentlyOpened.length} />
+              </div>
+              <div className="mt-5">
+                <Card className="p-5">
+                  <h2 className="mb-4 text-lg font-bold">Open Cases by Officer</h2>
+                  <div className="h-64">
+                    <UniformBarChart data={officerCasesChart} colors={statusChartColors} />
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ══ CASES ══ */}
+      {tab === 'cases' && (
+        <>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card className="p-5">
+              <h2 className="text-lg font-bold">Cases by Status</h2>
+              <UniformDonutChart data={caseStatus} colors={statusChartColors} centerValue={cases.length} centerLabel="Total" />
+            </Card>
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-bold">Cases by Type</h2>
+              <div className="h-72">
+                <UniformBarChart data={caseType} colors={documentChartColors} />
+              </div>
+            </Card>
+          </div>
+          <Card className="mt-5 p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">Open Cases ({filteredOpenCases.length})</h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <Select className="w-52" value={openCasesOfficer} onChange={(e) => setOpenCasesOfficer(e.target.value)}>
+                  <option value="">All officers</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </Select>
+                {openCasesOfficer && <Button variant="secondary" onClick={() => setOpenCasesOfficer('')}>Clear</Button>}
+                <Button variant="secondary" onClick={() => csvDownload('open-cases.csv', filteredOpenCases.map((c) => ({ caseNumber: c.caseNumber, title: c.caseTitle, status: c.status, type: c.caseType, officer: users.find((u) => u.id === c.responsibleOfficerId)?.name ?? '', opened: c.dateOpened })))}>CSV</Button>
+              </div>
+            </div>
+            {filteredOpenCases.length === 0 ? (
+              <EmptyState title="No open cases match" body="Try clearing the officer filter." />
+            ) : (
+              <Table>
+                <thead><tr><Th>Case No</Th><Th>Title</Th><Th>Type</Th><Th>Status</Th><Th>Officer</Th><Th>Opened</Th></tr></thead>
+                <tbody>
+                  {filteredOpenCases.map((c) => (
+                    <tr key={c.id} className="hover:bg-maroon-100/30">
+                      <Td><RecordLink to={`/cases/${c.id}`} tone="blue">{c.caseNumber}</RecordLink></Td>
+                      <Td className="font-semibold">{c.caseTitle}{c.isConfidential && <span className="ml-2"><ConfidentialBadge /></span>}</Td>
+                      <Td>{c.caseType}</Td>
+                      <Td><StatusBadge status={c.status} /></Td>
+                      <Td>{users.find((u) => u.id === c.responsibleOfficerId)?.name ?? c.responsibleOfficerId}</Td>
+                      <Td>{formatDate(c.dateOpened)}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ══ DOCUMENTS ══ */}
+      {tab === 'documents' && (
+        <>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-bold">Documents by Category</h2>
+              <div className="h-72">
+                <UniformBarChart data={docCategory} colors={documentChartColors} hideXAxis />
+              </div>
+            </Card>
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-bold">Monthly Uploads</h2>
+              <div className="h-72">
+                <ResponsiveContainer>
+                  <LineChart data={monthlyUploads} margin={{ top: 12, right: 10, left: -12, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#001B3D" strokeOpacity={0.08} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartTickStyle} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={chartTickStyle} />
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Line type="monotone" dataKey="value" stroke="#83002A" strokeWidth={3} dot={{ fill: '#83002A', r: 4 }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+          <Card className="mt-5 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">Expiring Contracts ({expiringDocs.length})</h2>
+                <p className="text-sm text-muted">Contract documents expiring within 90 days</p>
+              </div>
+              {expiringDocs.length > 0 && (
+                <Button variant="secondary" onClick={() => csvDownload('expiring-contracts.csv', expiringDocs.map((d) => ({ docNumber: d.documentNumber, title: d.title, category: d.category, expiry: d.expiryDate ?? '', status: d.status })))}>CSV</Button>
+              )}
+            </div>
+            {expiringDocs.length === 0 ? (
+              <EmptyState title="No expiring contracts" body="No contract documents expire within the next 90 days." />
+            ) : (
+              <Table>
+                <thead><tr><Th>Doc No</Th><Th>Title</Th><Th>Expiry</Th><Th>Status</Th></tr></thead>
+                <tbody>
+                  {expiringDocs.map((d) => (
+                    <tr key={d.id} className="hover:bg-maroon-100/30">
+                      <Td><RecordLink to={`/documents/${d.id}`} tone="purple">{d.documentNumber}</RecordLink></Td>
+                      <Td className="font-semibold">{d.title}</Td>
+                      <Td><Badge tone={d.expiryDate! <= '2026-07-25' ? 'red' : 'amber'}>{d.expiryDate}</Badge></Td>
+                      <Td>{d.status}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ══ CORRESPONDENCE ══ */}
+      {tab === 'correspondence' && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <ReportStatCard label="Total Correspondence" value={corr.length} />
+            <ReportStatCard
+              label="Awaiting Response"
+              value={awaitingCorr.length}
+              note={outstanding && outstanding.avgResponseDays > 0 ? `Avg closed response: ${outstanding.avgResponseDays} day(s)` : undefined}
+            />
+            <ReportStatCard label="Closed / Responded" value={corr.filter((c) => ['Closed', 'Responded'].includes(c.status)).length} />
+          </div>
+          <div className="mt-5 grid gap-5 xl:grid-cols-2">
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-bold">Incoming vs Outgoing</h2>
+              <div className="h-64">
+                <UniformBarChart data={corrDirectionData} colors={correspondenceChartColors} />
+              </div>
+            </Card>
+            <Card className="p-5">
+              <h2 className="mb-2 text-lg font-bold">Outstanding ({awaitingCorr.length})</h2>
+              {outstanding && outstanding.avgResponseDays > 0 && (
+                <p className="mb-3 text-sm text-muted">Average response time on closed items: <span className="font-semibold text-ink">{outstanding.avgResponseDays} day(s)</span></p>
+              )}
+              <Table>
+                <thead><tr><Th>Ref</Th><Th>Subject</Th><Th>Due</Th><Th>Priority</Th></tr></thead>
+                <tbody>
+                  {awaitingCorr.map((c) => (
+                    <tr key={c.id} className="hover:bg-maroon-100/30">
+                      <Td><RecordLink to={`/correspondence/${c.id}`} tone="orange">{c.correspondenceNumber}</RecordLink></Td>
+                      <Td className="font-semibold">{c.subject}</Td>
+                      <Td>{formatDate(c.dueDate)}</Td>
+                      <Td><PriorityBadge priority={c.priority} /></Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
+          </div>
+          <Card className="mt-5 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">Incoming Correspondence ({incomingCorr.length})</h2>
+              <Button variant="secondary" onClick={() => csvDownload('incoming-correspondence.csv', incomingCorr.map((c) => ({ ref: c.correspondenceNumber, subject: c.subject, from: c.sender, date: c.date, status: c.status, priority: c.priority })))}>CSV</Button>
+            </div>
+            <Table>
+              <thead><tr><Th>Ref No</Th><Th>Subject</Th><Th>From</Th><Th>Date</Th><Th>Status</Th><Th>Priority</Th></tr></thead>
+              <tbody>
+                {incomingCorr.map((c) => (
+                  <tr key={c.id} className="hover:bg-maroon-100/30">
+                    <Td><RecordLink to={`/correspondence/${c.id}`} tone="orange">{c.correspondenceNumber}</RecordLink></Td>
+                    <Td className="font-semibold">{c.subject}</Td>
+                    <Td>{c.sender}</Td>
+                    <Td>{formatDate(c.date)}</Td>
+                    <Td><Badge tone={c.status === 'Closed' ? 'green' : c.status === 'Awaiting Response' ? 'red' : 'amber'}>{c.status}</Badge></Td>
+                    <Td><PriorityBadge priority={c.priority} /></Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
+        </>
+      )}
+
+      {/* ══ USER ACTIVITY ══ */}
+      {tab === 'activity' && (
+        <>
+          {isLimited && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-warning">
+              Limited view — showing your own workload only. Full cross-officer comparison is restricted to Legal Manager and above.
+            </div>
+          )}
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-bold">Open Cases by Officer</h2>
+              <div className="h-72">
+                {officerCasesChart.length > 0 ? (
+                  <UniformBarChart data={officerCasesChart} colors={statusChartColors} />
+                ) : (
+                  <EmptyState title="No open cases" body="No open cases found for the current scope." />
+                )}
+              </div>
+            </Card>
+            <Card className="p-5">
+              <h2 className="mb-4 text-lg font-bold">Activities by Officer</h2>
+              <div className="h-72">
+                {officerActivityChart.length > 0 ? (
+                  <UniformBarChart data={officerActivityChart} colors={documentChartColors} />
+                ) : (
+                  <EmptyState title="No activities recorded" body="Activity data will appear as case work progresses." />
+                )}
+              </div>
+            </Card>
+          </div>
+          <Card className="mt-5 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">Officer Workload Summary</h2>
+              <Button variant="secondary" onClick={() => csvDownload('officer-workload.csv', officerData.map((r) => ({ officer: r.name, openCases: r.openCases, activities: r.activities })))}>CSV</Button>
+            </div>
+            <Table>
+              <thead><tr><Th>Officer</Th><Th>Role</Th><Th>Open Cases</Th><Th>Activities</Th></tr></thead>
+              <tbody>
+                {officerData.map((row) => (
+                  <tr key={row.officerId} className={row.officerId === currentUser.id ? 'bg-maroon-50/60' : ''}>
+                    <Td className="font-semibold">{row.name}{row.officerId === currentUser.id && <span className="ml-2 text-xs text-muted">(you)</span>}</Td>
+                    <Td>{users.find((u) => u.id === row.officerId)?.role ?? '—'}</Td>
+                    <Td><Badge tone={row.openCases >= 3 ? 'red' : row.openCases >= 1 ? 'amber' : 'green'}>{row.openCases}</Badge></Td>
+                    <Td>{row.activities}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
+        </>
+      )}
+
+      {/* ══ AUDIT ══ */}
+      {tab === 'audit' && (
+        <>
+          <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_auto] xl:items-center">
+            <Input placeholder="Search by user or record..." value={auditSearch} onChange={(e) => setAuditSearch(e.target.value)} className="xl:max-w-sm" />
+            <div className="flex flex-wrap gap-3">
+              <Select className="w-44" value={auditModule} onChange={(e) => setAuditModule(e.target.value)}>
+                <option value="">All modules</option>
+                {['Cases', 'Documents', 'Correspondence', 'Entities', 'System'].map((m) => <option key={m}>{m}</option>)}
+              </Select>
+              <Select className="w-44" value={auditAction} onChange={(e) => setAuditAction(e.target.value)}>
+                <option value="">All actions</option>
+                {['Create', 'Update', 'Delete', 'Upload', 'Download', 'Status Change', 'View'].map((a) => <option key={a}>{a}</option>)}
+              </Select>
+              <Input type="date" className="w-40" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} />
+              <Input type="date" className="w-40" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} />
+              <Button variant="secondary" onClick={() => { setAuditSearch(''); setAuditModule(''); setAuditAction(''); setAuditDateFrom(''); setAuditDateTo(''); }}>Reset</Button>
+              <Button variant="secondary" onClick={() => csvDownload('audit.csv', filteredAudit.map((e) => ({ date: e.date, user: e.user, action: e.action, module: e.module, record: e.recordRef })))}>CSV</Button>
+            </div>
+          </div>
+          <Card className="p-5">
+            <h2 className="mb-4 text-lg font-bold">Audit Trail ({filteredAudit.length} entries)</h2>
+            {filteredAudit.length === 0 ? (
+              <EmptyState title="No entries match" body="Adjust the filters above to find audit records." />
+            ) : (
+              <Table>
+                <thead><tr><Th>Date / Time</Th><Th>User</Th><Th>Action</Th><Th>Module</Th><Th>Record</Th></tr></thead>
+                <tbody>
+                  {filteredAudit.map((entry) => (
+                    <tr key={entry.id}>
+                      <Td className="whitespace-nowrap font-mono text-xs">{entry.date.slice(0, 16).replace('T', ' ')}</Td>
+                      <Td>{entry.user}</Td>
+                      <Td>
+                        <Badge tone={entry.action === 'Delete' ? 'red' : entry.action === 'Create' || entry.action === 'Upload' ? 'green' : entry.action === 'Status Change' ? 'amber' : 'muted'}>
+                          {entry.action}
+                        </Badge>
+                      </Td>
+                      <Td>{entry.module}</Td>
+                      <Td>{entry.recordRef}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        </>
+      )}
     </>
   );
 }

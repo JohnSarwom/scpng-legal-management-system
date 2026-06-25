@@ -56,7 +56,29 @@ export interface SearchService {
   search(query: string, user: User, kind?: string): Promise<SearchResult[]>;
 }
 
+export interface EntityExposureRow {
+  entityId: string;
+  entityName: string;
+  openCases: number;
+  documents: number;
+}
+
+export interface OfficerWorkloadRow {
+  officerId: string;
+  name: string;
+  openCases: number;
+  activities: number;
+}
+
+export interface OutstandingCorrespondenceSummary {
+  count: number;
+  avgResponseDays: number;
+}
+
 export interface ReportService {
   summary(user: User): Promise<Record<string, number>>;
   audit(): Promise<AuditLog[]>;
+  entityLegalExposure(): Promise<EntityExposureRow[]>;
+  officerWorkload(): Promise<OfficerWorkloadRow[]>;
+  outstandingCorrespondence(): Promise<OutstandingCorrespondenceSummary>;
 }

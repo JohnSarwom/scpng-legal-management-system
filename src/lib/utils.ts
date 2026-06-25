@@ -1,8 +1,9 @@
+import { twMerge } from 'tailwind-merge';
 import { PERMISSIONS, type Action } from '@/config/permissions';
 import type { Case, LegalDocument, User } from '@/types';
 
 export function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ');
+  return twMerge(classes.filter(Boolean).join(' '));
 }
 
 export function formatDate(value?: string | null) {
