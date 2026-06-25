@@ -177,6 +177,23 @@ function doPost(e) {
       if (!user) throw new Error('userId required');
       result = UserService.create(body.input, user);
 
+    } else if (action === 'submitFeedback') {
+      var feedbackType = body.feedbackType || 'General';
+      var message      = body.message     || '(no message)';
+      var rating       = body.rating      || 0;
+      var page         = body.page        || '';
+      var submittedBy  = body.submittedBy || 'Anonymous';
+      var subject = '[LMS Feedback] ' + feedbackType + (rating ? ' · ' + rating + '/5' : '');
+      var emailBody =
+        'Feedback Type: ' + feedbackType + '\n' +
+        'Rating: '        + (rating ? rating + '/5' : 'Not rated') + '\n' +
+        'Page: '          + (page || 'Unknown') + '\n' +
+        'Submitted by: '  + submittedBy + '\n' +
+        'Submitted at: '  + new Date().toISOString() + '\n\n' +
+        'Message:\n'      + message;
+      MailApp.sendEmail('sarwomjohn@gmail.com', subject, emailBody);
+      result = { ok: true };
+
     } else {
       throw new Error('Unknown action: ' + action);
     }

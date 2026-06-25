@@ -35,8 +35,29 @@ function FeedbackButton() {
     }, 180);
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
+    const feedbackType = (form.elements.namedItem('feedbackType') as HTMLSelectElement)?.value;
+    const message      = (form.elements.namedItem('message')      as HTMLTextAreaElement)?.value;
+    const appsScriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL as string | undefined;
+    if (appsScriptUrl) {
+      try {
+        await fetch(appsScriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'submitFeedback',
+            feedbackType,
+            message,
+            rating,
+            page: window.location.pathname,
+          }),
+        });
+      } catch {
+        // silently fail — feedback panel still closes
+      }
+    }
     setSubmitted(true);
   }
 
