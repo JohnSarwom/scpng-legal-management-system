@@ -2,7 +2,7 @@ import { nanoid } from 'nanoid';
 import { db, nextNumber } from './db';
 import { delay } from './delay';
 import { mockAuditService } from './auditService';
-import { today } from '@/lib/utils';
+import { canApproveCorrespondence, requiredSignoffRole, today } from '@/lib/utils';
 import type { Correspondence } from '@/types';
 import type { CorrespondenceService } from '../types';
 
@@ -54,9 +54,15 @@ export const mockCorrespondenceService: CorrespondenceService = {
     await delay();
     const index = db.correspondence.findIndex((item) => item.id === id);
     if (index < 0) throw new Error('Correspondence not found');
-    const next = { ...db.correspondence[index], approvedBy: user.id, approvedAt: today() };
+    const item = db.correspondence[index];
+    if (!canApproveCorrespondence(item, user)) {
+      const required = requiredSignoffRole(item);
+      await mockAuditService.record({ user: user.name, action: 'Update', module: 'Correspondence', recordRef: `${item.correspondenceNumber} sign-off denied (requires ${required ?? 'N/A'})` });
+      throw new Error(`This correspondence must be signed off by ${required ?? 'the correct signatory'}. Your role (${user.role}) is not authorised.`);
+    }
+    const next = { ...item, approvedBy: user.id, approvedAt: today() };
     db.correspondence[index] = next;
-    await mockAuditService.record({ user: user.name, action: 'Update', module: 'Correspondence', recordRef: `${next.correspondenceNumber} approved` });
+    await mockAuditService.record({ user: user.name, action: 'Update', module: 'Correspondence', recordRef: `${next.correspondenceNumber} signed off by ${user.role}` });
     return { ...next };
   },
   async remove(id, user) {

@@ -11,7 +11,7 @@ import type { Notification } from '@/types';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/cases', label: 'Cases', icon: BriefcaseBusiness },
+  { to: '/cases', label: 'Matters', icon: BriefcaseBusiness },
   { to: '/documents', label: 'Documents', icon: FileText },
   { to: '/correspondence', label: 'CEO Letters', icon: SquareLibrary },
   { to: '/entities', label: 'Entities', icon: Building2 },
@@ -275,7 +275,7 @@ function AppShellInner() {
         <header className="sticky top-0 z-30 px-10 pt-3">
           <div className="flex h-20 items-center gap-5 rounded-[28px] bg-maroon-800 px-5 text-white shadow-lift">
             <button onClick={() => navigate('/search')} className="flex h-14 min-w-[360px] max-w-2xl flex-1 items-center gap-3 rounded-2xl border border-white/20 bg-white/12 px-4 text-left text-lg text-white/90">
-              <Search className="h-5 w-5 shrink-0 stroke-[2.25]" /> Search cases, documents, correspondence, entities...
+              <Search className="h-5 w-5 shrink-0 stroke-[2.25]" /> Search matters, documents, correspondence, entities...
             </button>
             <div className="ml-auto flex shrink-0 items-center gap-5">
               <NotificationBell />

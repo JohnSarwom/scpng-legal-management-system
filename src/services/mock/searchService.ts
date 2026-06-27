@@ -14,7 +14,7 @@ export const mockSearchService: SearchService = {
       results.push(...db.entities.filter((item) => [item.entityId, item.entityName, item.entityStatus].some((value) => value.toLowerCase().includes(q))).map((record) => ({ kind: 'entity' as const, record, context: record.registrationDetails })));
     }
     if (kind === 'all' || kind === 'case') {
-      results.push(...db.cases.filter((item) => canAccessConfidentialCase(item, user)).filter((item) => !assignedOnly || item.responsibleOfficerId === user.id || item.grantedUserIds?.includes(user.id)).filter((item) => [item.id, item.caseNumber, item.caseTitle, item.caseType].some((value) => value.toLowerCase().includes(q))).map((record) => ({ kind: 'case' as const, record, context: record.description })));
+      results.push(...db.cases.filter((item) => canAccessConfidentialCase(item, user)).filter((item) => !assignedOnly || item.responsibleOfficerId === user.id || item.grantedUserIds?.includes(user.id)).filter((item) => [item.id, item.caseNumber, item.caseTitle, item.caseDivision, item.caseSubType].some((value) => value.toLowerCase().includes(q))).map((record) => ({ kind: 'case' as const, record, context: record.description })));
     }
     if (kind === 'all' || kind === 'document') {
       results.push(...db.documents.filter((item) => canAccessDocument(item, db.cases, user)).filter((item) => [item.id, item.documentNumber, item.title, item.category].some((value) => value.toLowerCase().includes(q))).map((record) => ({ kind: 'document' as const, record, context: record.category })));

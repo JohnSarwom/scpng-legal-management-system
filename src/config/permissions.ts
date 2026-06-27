@@ -6,6 +6,9 @@ export type Action =
   | 'editCases'
   | 'closeCases'
   | 'assignCases'
+  | 'setHighRisk'
+  | 'initiateClosure'
+  | 'approveClosure'
   | 'viewDocuments'
   | 'uploadDocuments'
   | 'editDocuments'
@@ -15,6 +18,7 @@ export type Action =
   | 'userManagement'
   | 'viewEntities'
   | 'manageEntities'
+  | 'manageTemplates'
   | 'viewNotifications';
 
 export type Access = 'full' | 'assigned' | 'limited' | 'none';
@@ -23,8 +27,11 @@ export const PERMISSIONS: Record<Action, Record<Role, Access>> = {
   viewCases: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'assigned', 'Legal Officer': 'assigned', 'Executive Officer': 'assigned' },
   createCases: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'none' },
   editCases: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'assigned', 'Executive Officer': 'none' },
-  closeCases: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
+  closeCases: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'none', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
   assignCases: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
+  setHighRisk: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
+  initiateClosure: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
+  approveClosure: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'none', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
   viewDocuments: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'full' },
   uploadDocuments: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'full' },
   editDocuments: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'assigned', 'Executive Officer': 'none' },
@@ -34,5 +41,6 @@ export const PERMISSIONS: Record<Action, Record<Role, Access>> = {
   userManagement: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'none', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
   viewEntities: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'full' },
   manageEntities: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'none', 'Legal Officer': 'none', 'Executive Officer': 'none' },
+  manageTemplates: { CEO: 'none', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'none', 'Executive Officer': 'none' },
   viewNotifications: { CEO: 'full', 'General Counsel': 'full', 'Legal Manager': 'full', 'Senior Legal Officer': 'full', 'Legal Officer': 'full', 'Executive Officer': 'full' },
 };

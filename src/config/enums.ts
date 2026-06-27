@@ -1,8 +1,32 @@
-export const CASE_STATUSES = ['Draft', 'Open', 'Pending', 'Under Review', 'Closed', 'Archived'] as const;
+export const CASE_STATUSES = ['Draft', 'Open', 'Pending', 'Under Review', 'Pending Closure', 'Closed', 'Archived'] as const;
 export type CaseStatus = (typeof CASE_STATUSES)[number];
 
-export const CASE_TYPES = ['Litigation', 'Employment', 'Contracts', 'Compliance', 'Regulatory', 'Other'] as const;
-export type CaseType = (typeof CASE_TYPES)[number];
+export const CASE_DIVISIONS = [
+  'Enforcement & Compliance',
+  'Legal Advisory',
+  'Executive & Secretariat',
+] as const;
+export type CaseDivision = (typeof CASE_DIVISIONS)[number];
+
+/** Sub-types per division — edit this single object to add/rename sub-types after WS#2. */
+export const CASE_SUB_TYPES: Record<CaseDivision, readonly string[]> = {
+  'Enforcement & Compliance': ['Litigation', 'Compliance'],
+  'Legal Advisory': ['Contracts', 'In-house legal advice'],
+  'Executive & Secretariat': ['Board/executive matters'],
+};
+
+export type CaseSubType = string; // loosely typed until WS#2 finalises the list
+export const ALL_CASE_SUB_TYPES: string[] = Object.values(CASE_SUB_TYPES).flat();
+
+export const TEMPLATE_TYPES = [
+  'Standard Notice',
+  'WSP Form',
+  'Contract Precedent',
+  'Letter Template',
+  'Compliance Form',
+  'Other',
+] as const;
+export type TemplateType = (typeof TEMPLATE_TYPES)[number];
 
 export const DOCUMENT_CATEGORIES = [
   'Contracts',
@@ -38,8 +62,17 @@ export type CorrespondenceCategory = (typeof CORRESPONDENCE_CATEGORIES)[number];
 export const CORRESPONDENCE_PRIORITIES = ['Critical', 'High', 'Medium', 'Low'] as const;
 export type CorrespondencePriority = (typeof CORRESPONDENCE_PRIORITIES)[number];
 
-export const CORRESPONDENCE_CONFIDENTIALITY = ['Public', 'Internal', 'Confidential', 'Restricted'] as const;
+export const CORRESPONDENCE_CONFIDENTIALITY = ['Public', 'Restricted', 'Confidential', 'Executive Confidential'] as const;
 export type CorrespondenceConfidentiality = (typeof CORRESPONDENCE_CONFIDENTIALITY)[number];
+
+/** Canonical 4-level scheme shared by Cases, Documents, and Correspondence (Decision #10). */
+export const CONFIDENTIALITY_LEVELS = CORRESPONDENCE_CONFIDENTIALITY;
+export type ConfidentialityLevel = CorrespondenceConfidentiality;
+
+/** Ordered rank — use for range comparisons (e.g. "at least Confidential"). */
+export const CONFIDENTIALITY_RANK: Record<ConfidentialityLevel, number> = {
+  Public: 0, Restricted: 1, Confidential: 2, 'Executive Confidential': 3,
+};
 
 export const CORRESPONDENCE_ACTIONS = ['Response', 'Review', 'Approval', 'Information Only'] as const;
 export type CorrespondenceAction = (typeof CORRESPONDENCE_ACTIONS)[number];

@@ -13,8 +13,8 @@ export const mockReportService: ReportService = {
     const open = cases.filter((item) => !['Closed', 'Archived'].includes(item.status));
     return {
       openCases: open.length,
-      highRiskMatters: open.filter((item) => item.isConfidential || item.caseType === 'Litigation').length,
-      courtMatters: cases.filter((item) => item.caseType === 'Litigation').length,
+      highRiskMatters: open.filter((item) => item.isHighRisk).length,
+      courtMatters: cases.filter((item) => item.caseSubType === 'Litigation').length,
       correspondenceThisMonth: db.correspondence.filter((item) => item.date.startsWith('2026-06')).length,
       documents: db.documents.length,
       awaitingResponse: db.correspondence.filter((item) => item.status === 'Awaiting Response').length,

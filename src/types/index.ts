@@ -1,4 +1,4 @@
-import type { CaseStatus, CaseType, ConfidentialClass, CorrespondenceAction, CorrespondenceCategory, CorrespondenceConfidentiality, CorrespondenceDirection, CorrespondencePriority, CorrespondenceStatus, DocumentCategory, EntitySource, EntityStatus, EntityType, Role } from '@/config/enums';
+import type { CaseDivision, CaseStatus, CaseSubType, ConfidentialClass, ConfidentialityLevel, CorrespondenceAction, CorrespondenceCategory, CorrespondenceConfidentiality, CorrespondenceDirection, CorrespondencePriority, CorrespondenceStatus, DocumentCategory, EntitySource, EntityStatus, EntityType, Role } from '@/config/enums';
 
 export interface Entity {
   entityId: string;
@@ -39,17 +39,27 @@ export interface Case {
   id: string;
   caseNumber: string;
   caseTitle: string;
-  entityId: string;
-  caseType: CaseType;
+  /** null for internal matters (HR disputes, supplier matters) that have no regulated entity. */
+  entityId: string | null;
+  caseDivision: CaseDivision;
+  caseSubType: CaseSubType;
   description: string;
   responsibleOfficerId: string;
   status: CaseStatus;
   dateOpened: string;
   dateClosed: string | null;
-  isConfidential: boolean;
+  /** Canonical 4-level access tier (Decision #10/11). */
+  confidentiality: ConfidentialityLevel;
+  /** Optional matter-category tag — organisational context, not an access level. */
   confidentialClass: ConfidentialClass | null;
   grantedUserIds?: string[];
   grantedEditUserIds?: string[];
+  isHighRisk?: boolean;
+  highRiskSetBy?: string | null;
+  highRiskSetAt?: string | null;
+  closureInitiatedBy?: string | null;
+  closureApprovedBy?: string | null;
+  closureApprovedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,10 +68,12 @@ export type CaseInput = Omit<Case, 'id' | 'caseNumber' | 'createdAt' | 'updatedA
 export interface CaseFilter {
   query?: string;
   status?: string;
-  type?: string;
+  division?: string;
+  subType?: string;
   officerId?: string;
   entityId?: string;
   confidentiality?: string;
+  highRisk?: boolean;
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
@@ -94,6 +106,8 @@ export interface LegalDocument {
   classification: 'Public' | 'Restricted' | 'Confidential' | 'Executive-Confidential';
   sourceUrl?: string;
   expiryDate?: string;
+  isTemplate?: boolean;
+  templateType?: string | null;
 }
 
 export type DocumentInput = Omit<LegalDocument, 'id' | 'documentNumber' | 'currentVersion' | 'versions' | 'uploadedBy' | 'uploadDate'> & {
@@ -115,6 +129,7 @@ export interface DocumentFilter {
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
+  isTemplate?: boolean;
 }
 
 export interface Correspondence {
@@ -142,6 +157,9 @@ export interface Correspondence {
   closedDate?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
+  /** Outgoing only. When true, sign-off routes to General Counsel (legal exception);
+   *  false/absent = sign-off routes to CEO (default). Only General Counsel may set this. */
+  isLegalMatter?: boolean;
 }
 
 export type CorrespondenceInput = Omit<Correspondence, 'id' | 'correspondenceNumber' | 'approvedBy' | 'approvedAt'>;

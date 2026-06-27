@@ -1,6 +1,7 @@
 import { twMerge } from 'tailwind-merge';
+import { CONFIDENTIALITY_RANK, type ConfidentialityLevel } from '@/config/enums';
 import { PERMISSIONS, type Action } from '@/config/permissions';
-import type { Case, LegalDocument, User } from '@/types';
+import type { Case, Correspondence, LegalDocument, User } from '@/types';
 
 export function cn(...classes: Array<string | false | null | undefined>) {
   return twMerge(classes.filter(Boolean).join(' '));
@@ -23,8 +24,20 @@ export function now() {
   return new Date().toISOString();
 }
 
+/** Can this user see the CONTENT of a record at the given confidentiality level? (Decision #11)
+ *  Executive Confidential: CEO only. Confidential: Senior+ or granted. Restricted/Public: all. */
+export function canViewConfidentialContent(level: ConfidentialityLevel, user: User, hasGrant: boolean): boolean {
+  if (level === 'Executive Confidential') return user.role === 'CEO';
+  if (level === 'Confidential') return ['CEO', 'General Counsel', 'Legal Manager'].includes(user.role) || hasGrant;
+  return true; // Restricted and Public are readable by all authorised module users
+}
+
 export function canAccessConfidentialCase(item: Case, user: User) {
-  if (!item.isConfidential) return true;
+  const rank = CONFIDENTIALITY_RANK[item.confidentiality];
+  if (rank < 2) return true; // Public or Restricted — visible to all
+  // Executive Confidential: CEO only (not even General Counsel — Decision #11)
+  if (item.confidentiality === 'Executive Confidential') return user.role === 'CEO';
+  // Confidential: role-based + grants
   if (user.role === 'CEO' || user.role === 'General Counsel') return true;
   if (user.role === 'Executive Officer') return item.grantedUserIds?.includes(user.id) ?? false;
   return item.responsibleOfficerId === user.id || (item.grantedUserIds?.includes(user.id) ?? false);
@@ -64,6 +77,18 @@ export function canAccessDocument(document: LegalDocument, cases: Case[], user: 
   const linkedCase = document.caseId ? cases.find((item) => item.id === document.caseId) : null;
   if (!linkedCase) return user.role !== 'Executive Officer';
   return canAccessConfidentialCase(linkedCase, user);
+}
+
+/** Returns the role required to sign off an outgoing correspondence item, or null for incoming. */
+export function requiredSignoffRole(c: Correspondence): 'CEO' | 'General Counsel' | null {
+  if (c.direction !== 'Outgoing') return null;
+  return c.isLegalMatter ? 'General Counsel' : 'CEO';
+}
+
+/** Returns true only when the given user is the correct signatory for this correspondence item. */
+export function canApproveCorrespondence(c: Correspondence, user: User): boolean {
+  const required = requiredSignoffRole(c);
+  return required !== null && user.role === required;
 }
 
 export function csvDownload(fileName: string, rows: Array<Record<string, string | number | null | undefined>>) {

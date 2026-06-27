@@ -51,8 +51,12 @@ export function Badge({ children, tone = 'muted' }: { children: ReactNode; tone?
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const tone = status === 'Open' ? 'blue' : status === 'Closed' || status === 'Responded' ? 'green' : status === 'Pending' || status === 'Awaiting Response' || status === 'In Progress' ? 'amber' : status === 'Under Review' ? 'purple' : status === 'Active' ? 'green' : status === 'Draft' ? 'muted' : 'red';
+  const tone = status === 'Open' ? 'blue' : status === 'Closed' || status === 'Responded' ? 'green' : status === 'Pending' || status === 'Awaiting Response' || status === 'In Progress' ? 'amber' : status === 'Under Review' ? 'purple' : status === 'Pending Closure' ? 'orange' : status === 'Active' ? 'green' : status === 'Draft' ? 'muted' : 'red';
   return <Badge tone={tone}>{status}</Badge>;
+}
+
+export function HighRiskBadge() {
+  return <Badge tone="red">⚑ High Risk</Badge>;
 }
 
 export function PriorityBadge({ priority }: { priority: string }) {
@@ -61,7 +65,7 @@ export function PriorityBadge({ priority }: { priority: string }) {
 }
 
 export function ConfidentialityBadge({ level }: { level: string }) {
-  const tone = level === 'Restricted' ? 'red' : level === 'Confidential' ? 'amber' : level === 'Internal' ? 'blue' : 'green';
+  const tone = level === 'Executive Confidential' ? 'red' : level === 'Confidential' ? 'amber' : level === 'Restricted' ? 'orange' : 'green';
   return <Badge tone={tone}>{level}</Badge>;
 }
 

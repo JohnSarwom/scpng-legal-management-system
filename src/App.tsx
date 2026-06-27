@@ -3,8 +3,8 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, use
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowLeft, Building2, CalendarDays, Check, ChevronDown, Download, Eye, FilePlus2, GitBranch, LinkIcon, Plus, Send, ShieldCheck, SlidersHorizontal, UploadCloud, X } from 'lucide-react';
 import { AppShell } from '@/components/layout';
-import { Badge, Button, Card, ConfidentialBadge, ConfidentialityBadge, EmptyState, Input, Modal, PageHeader, PriorityBadge, Select, StatusBadge, Table, Td, Textarea, Th } from '@/components/ui';
-import { CASE_STATUSES, CASE_TYPES, CONFIDENTIAL_CLASSES, CORRESPONDENCE_ACTIONS, CORRESPONDENCE_CATEGORIES, CORRESPONDENCE_CONFIDENTIALITY, CORRESPONDENCE_PRIORITIES, CORRESPONDENCE_STATUSES, DOCUMENT_CATEGORIES, ENTITY_STATUSES, ENTITY_TYPES } from '@/config/enums';
+import { Badge, Button, Card, ConfidentialBadge, ConfidentialityBadge, EmptyState, HighRiskBadge, Input, Modal, PageHeader, PriorityBadge, Select, StatusBadge, Table, Td, Textarea, Th } from '@/components/ui';
+import { ALL_CASE_SUB_TYPES, CASE_DIVISIONS, CASE_STATUSES, CASE_SUB_TYPES, CONFIDENTIAL_CLASSES, CONFIDENTIALITY_LEVELS, CONFIDENTIALITY_RANK, CORRESPONDENCE_ACTIONS, CORRESPONDENCE_CATEGORIES, CORRESPONDENCE_CONFIDENTIALITY, CORRESPONDENCE_PRIORITIES, CORRESPONDENCE_STATUSES, DOCUMENT_CATEGORIES, ENTITY_STATUSES, ENTITY_TYPES, TEMPLATE_TYPES, type CaseDivision, type ConfidentialityLevel } from '@/config/enums';
 import { PERMISSIONS, type Action } from '@/config/permissions';
 import { useSession } from '@/context/useSession';
 import { useCase, useCaseMutations, useCases } from '@/hooks/useCases';
@@ -19,12 +19,17 @@ import { useActivities } from '@/hooks/useActivities';
 import { cn, csvDownload, formatDate, today } from '@/lib/utils';
 import type { Case, CaseFilter, CaseInput, Correspondence, CorrespondenceInput, DocumentInput, Entity, EntityFilter, EntityInput, LegalDocument, User } from '@/types';
 
+
 const actionLabels: Record<Action, string> = {
   viewCases: 'View cases',
   createCases: 'Create cases',
   editCases: 'Edit cases',
   closeCases: 'Close cases',
   assignCases: 'Assign cases',
+  setHighRisk: 'Set high risk flag',
+  initiateClosure: 'Submit for closure',
+  approveClosure: 'Approve closure',
+  manageTemplates: 'Manage document templates',
   viewDocuments: 'View documents',
   uploadDocuments: 'Upload documents',
   editDocuments: 'Edit documents',
@@ -188,7 +193,7 @@ function DashboardPage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const firstName = currentUser.name.split(' ')[0] ?? currentUser.name;
   const quickActions = [
-    canDo('createCases') ? { to: '/cases', label: 'Register Case', detail: 'Open a new legal matter', icon: Plus } : null,
+    canDo('createCases') ? { to: '/cases', label: 'Register Matter', detail: 'Open a new legal matter', icon: Plus } : null,
     canDo('uploadDocuments') ? { to: '/documents', label: 'Upload Document', detail: 'Add repository material', icon: FilePlus2 } : null,
     canDo('registerCorrespondence') ? { to: '/correspondence', label: 'New Correspondence', detail: 'Record CEO letters', icon: Send } : null,
     canDo('viewReports') ? { to: '/reports', label: 'View Reports', detail: 'Review legal activity', icon: Eye } : null,
@@ -236,7 +241,7 @@ function DashboardPage() {
       </section>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Open Cases', summary?.openCases ?? 0, 'Active legal matters'],
+          ['Open Matters', summary?.openCases ?? 0, 'Active legal matters'],
           ['High-Risk Matters', summary?.highRiskMatters ?? 0, 'Confidential or litigation'],
           ['Documents', docs.length, 'Repository records'],
           ['Awaiting Response', summary?.awaitingResponse ?? 0, 'CEO correspondence'],
@@ -250,7 +255,7 @@ function DashboardPage() {
       </div>
       <div className="mt-6 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="p-5">
-          <h2 className="mb-4 text-lg font-bold">Cases by Status</h2>
+          <h2 className="mb-4 text-lg font-bold">Matters by Status</h2>
           <div className="h-72">
             <UniformBarChart data={statusData} />
           </div>
@@ -362,10 +367,12 @@ function CaseForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: entities = [] } = useEntities();
   const { createCase } = useCaseMutations();
   const navigate = useNavigate();
-  const [isConfidential, setIsConfidential] = useState(false);
+  const [caseConfidentiality, setCaseConfidentiality] = useState<ConfidentialityLevel>('Restricted');
+  const [division, setDivision] = useState<CaseDivision>(CASE_DIVISIONS[0]);
+  const [caseSubType, setCaseSubType] = useState<string>(CASE_SUB_TYPES[CASE_DIVISIONS[0]][0]);
   const [responsibleOfficerId, setResponsibleOfficerId] = useState(currentUser.id);
   const [teamUserIds, setTeamUserIds] = useState<string[]>([]);
-  useEffect(() => { if (open) setTeamUserIds([]); }, [open]);
+  useEffect(() => { if (open) { setCaseConfidentiality('Restricted'); setDivision(CASE_DIVISIONS[0]); setCaseSubType(CASE_SUB_TYPES[CASE_DIVISIONS[0]][0]); setTeamUserIds([]); } }, [open]);
   const officerOptions = users.filter((user) => user.role.includes('Legal') || user.role === 'General Counsel');
   const grantableUsers = users.filter((user) => (user.role.includes('Legal') || user.role === 'General Counsel' || user.role === 'Executive Officer') && user.id !== responsibleOfficerId);
   const teamUsers = grantableUsers.filter((u) => teamUserIds.includes(u.id));
@@ -375,7 +382,7 @@ function CaseForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const confidential = form.get('isConfidential') === 'on';
+    const isConfidential = caseConfidentiality === 'Confidential' || caseConfidentiality === 'Executive Confidential';
     const viewGrants: string[] = [];
     const editGrants: string[] = [];
     for (const user of teamUsers) {
@@ -383,18 +390,19 @@ function CaseForm({ open, onClose }: { open: boolean; onClose: () => void }) {
       if (access === 'view' || access === 'edit') viewGrants.push(user.id);
       if (access === 'edit') editGrants.push(user.id);
     }
-    const needsAutoGrant = confidential && currentUser.role !== 'CEO' && currentUser.role !== 'General Counsel' && responsibleOfficerId !== currentUser.id && !viewGrants.includes(currentUser.id);
+    const needsAutoGrant = isConfidential && currentUser.role !== 'CEO' && currentUser.role !== 'General Counsel' && responsibleOfficerId !== currentUser.id && !viewGrants.includes(currentUser.id);
     const input: CaseInput = {
       caseTitle: String(form.get('caseTitle')),
-      entityId: String(form.get('entityId')),
-      caseType: String(form.get('caseType')) as CaseInput['caseType'],
+      entityId: String(form.get('entityId')) || null,
+      caseDivision: division,
+      caseSubType,
       description: String(form.get('description')),
       responsibleOfficerId,
       status: String(form.get('status')) as CaseInput['status'],
       dateOpened: String(form.get('dateOpened')),
       dateClosed: null,
-      isConfidential: confidential,
-      confidentialClass: confidential ? String(form.get('confidentialClass')) as CaseInput['confidentialClass'] : null,
+      confidentiality: caseConfidentiality,
+      confidentialClass: isConfidential ? String(form.get('confidentialClass')) as CaseInput['confidentialClass'] : null,
       grantedUserIds: needsAutoGrant ? [...viewGrants, currentUser.id] : viewGrants,
       grantedEditUserIds: needsAutoGrant ? [...editGrants, currentUser.id] : editGrants,
     };
@@ -403,17 +411,17 @@ function CaseForm({ open, onClose }: { open: boolean; onClose: () => void }) {
     navigate(`/cases/${created.id}`);
   }
   return (
-    <Modal title="Register Case" open={open} onClose={onClose}>
+    <Modal title="Register Matter" open={open} onClose={onClose}>
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-dashed border-line bg-maroon-100/40 px-3 py-2 text-sm font-semibold text-muted md:col-span-2">Case number: Auto-generated on save</div>
+        <div className="rounded-lg border border-dashed border-line bg-maroon-100/40 px-3 py-2 text-sm font-semibold text-muted md:col-span-2">Matter number: Auto-generated on save</div>
         <label className="space-y-1"><span className="text-sm font-semibold">Case title</span><Input name="caseTitle" required minLength={3} /></label>
-        <label className="space-y-1"><span className="text-sm font-semibold">Entity</span><Select name="entityId" defaultValue="" required><option value="" disabled>Select entity</option>{entities.map((entity) => <option key={entity.entityId} value={entity.entityId}>{entity.entityName}</option>)}</Select></label>
-        <label className="space-y-1"><span className="text-sm font-semibold">Case type</span><Select name="caseType">{CASE_TYPES.map((item) => <option key={item}>{item}</option>)}</Select></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Entity <span className="font-normal text-muted">(optional)</span></span><Select name="entityId" defaultValue=""><option value="">No entity — internal / HR / supplier matter</option>{entities.map((entity) => <option key={entity.entityId} value={entity.entityId}>{entity.entityName}</option>)}</Select></label>
+        <DivisionSubTypePicker division={division} subType={caseSubType} onChange={(d, s) => { setDivision(d); setCaseSubType(s); }} />
         <label className="space-y-1"><span className="text-sm font-semibold">Responsible officer</span><Select name="responsibleOfficerId" value={responsibleOfficerId} onChange={(event) => setResponsibleOfficerId(event.target.value)}>{officerOptions.map((user) => <option key={user.id} value={user.id}>{user.name} - {user.role}</option>)}</Select></label>
         <label className="space-y-1"><span className="text-sm font-semibold">Status</span><Select name="status" defaultValue="Draft">{CASE_STATUSES.map((item) => <option key={item}>{item}</option>)}</Select></label>
         <div className="space-y-2 md:col-span-2">
-          <span className="text-sm font-semibold">Case team</span>
-          <p className="text-xs text-muted">Senior Legal Officers, Legal Officers, and Executive Officers can only see and work on cases they own or are added to here. Choose what access anyone else gets.</p>
+          <span className="text-sm font-semibold">Matter team</span>
+          <p className="text-xs text-muted">Senior Legal Officers, Legal Officers, and Executive Officers can only see and work on matters they own or are added to here. Choose what access anyone else gets.</p>
           <CaseTeamPicker users={grantableUsers} selectedIds={teamUserIds} onToggle={toggleTeamUser} />
           {teamUsers.length > 0 && (
             <div className="divide-y divide-line rounded-lg border border-line">
@@ -435,15 +443,34 @@ function CaseForm({ open, onClose }: { open: boolean; onClose: () => void }) {
         </div>
         <label className="space-y-1"><span className="text-sm font-semibold">Registration date</span><Input type="date" name="dateOpened" defaultValue={today()} required /></label>
         <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Description</span><Textarea name="description" required /></label>
-        <ConfidentialToggle checked={isConfidential} onChange={setIsConfidential} />
-        <label className="space-y-1"><span className="text-sm font-semibold">Confidential class</span><Select name="confidentialClass" disabled={!isConfidential} required={isConfidential}>{CONFIDENTIAL_CLASSES.map((item) => <option key={item}>{item}</option>)}</Select></label>
-        <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={createCase.isPending}>Register Case</Button></div>
+        <label className="space-y-1"><span className="text-sm font-semibold">Confidentiality level</span><Select value={caseConfidentiality} onChange={(e) => setCaseConfidentiality(e.target.value as ConfidentialityLevel)}>{CONFIDENTIALITY_LEVELS.map((lvl) => <option key={lvl}>{lvl}</option>)}</Select></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Confidential class <span className="font-normal text-muted">(optional)</span></span><Select name="confidentialClass" disabled={caseConfidentiality !== 'Confidential' && caseConfidentiality !== 'Executive Confidential'}><option value="">None</option>{CONFIDENTIAL_CLASSES.map((cls) => <option key={cls}>{cls}</option>)}</Select></label>
+        <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={createCase.isPending}>Register Matter</Button></div>
       </form>
     </Modal>
   );
 }
 
-const emptyCaseFilters: CaseFilter = { query: '', status: '', type: '', officerId: '', confidentiality: '', dateFrom: '', dateTo: '', sortBy: '', includeArchived: false };
+function DivisionSubTypePicker({ division, subType, onChange }: { division: CaseDivision; subType: string; onChange: (d: CaseDivision, s: string) => void }) {
+  return (
+    <>
+      <label className="space-y-1">
+        <span className="text-sm font-semibold">Division</span>
+        <Select value={division} onChange={(e) => { const d = e.target.value as CaseDivision; onChange(d, CASE_SUB_TYPES[d][0]); }}>
+          {CASE_DIVISIONS.map((d) => <option key={d}>{d}</option>)}
+        </Select>
+      </label>
+      <label className="space-y-1">
+        <span className="text-sm font-semibold">Sub-type</span>
+        <Select value={subType} onChange={(e) => onChange(division, e.target.value)}>
+          {CASE_SUB_TYPES[division].map((s) => <option key={s}>{s}</option>)}
+        </Select>
+      </label>
+    </>
+  );
+}
+
+const emptyCaseFilters: CaseFilter = { query: '', status: '', division: '', subType: '', officerId: '', confidentiality: '', highRisk: false, dateFrom: '', dateTo: '', sortBy: '', includeArchived: false };
 
 function CaseFilters({ filters, setFilters, resetFilters, users }: { filters: CaseFilter; setFilters: React.Dispatch<React.SetStateAction<CaseFilter>>; resetFilters: () => void; users: User[] }) {
   const [filterOpen, setFilterOpen] = useState(false);
@@ -451,19 +478,21 @@ function CaseFilters({ filters, setFilters, resetFilters, users }: { filters: Ca
   const selectedOfficer = legalUsers.find((user) => user.id === filters.officerId);
   const activeFilters = [
     filters.status ? { key: 'status', label: `Status: ${filters.status}`, clear: () => setFilters((value) => ({ ...value, status: '' })) } : null,
-    filters.type ? { key: 'type', label: `Type: ${filters.type}`, clear: () => setFilters((value) => ({ ...value, type: '' })) } : null,
+    filters.division ? { key: 'division', label: `Division: ${filters.division}`, clear: () => setFilters((value) => ({ ...value, division: '', subType: '' })) } : null,
+    filters.subType ? { key: 'subType', label: `Sub-type: ${filters.subType}`, clear: () => setFilters((value) => ({ ...value, subType: '' })) } : null,
     filters.officerId ? { key: 'officerId', label: `Officer: ${selectedOfficer?.name ?? filters.officerId}`, clear: () => setFilters((value) => ({ ...value, officerId: '' })) } : null,
     filters.confidentiality ? { key: 'confidentiality', label: `Confidentiality: ${filters.confidentiality === 'confidential' ? 'Confidential' : 'Standard'}`, clear: () => setFilters((value) => ({ ...value, confidentiality: '' })) } : null,
+    filters.highRisk ? { key: 'highRisk', label: 'High Risk only', clear: () => setFilters((value) => ({ ...value, highRisk: false })) } : null,
     filters.dateFrom ? { key: 'dateFrom', label: `Registered from: ${formatDate(filters.dateFrom)}`, clear: () => setFilters((value) => ({ ...value, dateFrom: '' })) } : null,
     filters.dateTo ? { key: 'dateTo', label: `Registered to: ${formatDate(filters.dateTo)}`, clear: () => setFilters((value) => ({ ...value, dateTo: '' })) } : null,
     filters.includeArchived ? { key: 'includeArchived', label: 'Includes archived', clear: () => setFilters((value) => ({ ...value, includeArchived: false })) } : null,
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
-  const filterCount = activeFilters.filter((item) => item.key !== 'includeArchived').length;
+  const filterCount = activeFilters.filter((item) => item !== null && item.key !== 'includeArchived').length;
 
   return (
     <div className="mb-4 space-y-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <Input className="lg:max-w-md" placeholder="Search cases..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
+        <Input className="lg:max-w-md" placeholder="Search matters..." value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
         <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap lg:ml-auto">
           <div className="relative shrink-0">
             <Button type="button" variant="secondary" onClick={() => setFilterOpen((value) => !value)} aria-expanded={filterOpen} className="h-11">
@@ -485,8 +514,12 @@ function CaseFilters({ filters, setFilters, resetFilters, users }: { filters: Ca
                     <Select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{CASE_STATUSES.map((item) => <option key={item}>{item}</option>)}</Select>
                   </label>
                   <label className="space-y-1">
-                    <span className="text-xs font-bold uppercase tracking-wide text-muted">Type</span>
-                    <Select value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })}><option value="">All types</option>{CASE_TYPES.map((item) => <option key={item}>{item}</option>)}</Select>
+                    <span className="text-xs font-bold uppercase tracking-wide text-muted">Division</span>
+                    <Select value={filters.division ?? ''} onChange={(e) => setFilters({ ...filters, division: e.target.value, subType: '' })}><option value="">All divisions</option>{CASE_DIVISIONS.map((d) => <option key={d}>{d}</option>)}</Select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase tracking-wide text-muted">Sub-type</span>
+                    <Select value={filters.subType ?? ''} onChange={(e) => setFilters({ ...filters, subType: e.target.value })}><option value="">All sub-types</option>{(filters.division ? CASE_SUB_TYPES[filters.division as CaseDivision] : ALL_CASE_SUB_TYPES).map((s) => <option key={s}>{s}</option>)}</Select>
                   </label>
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wide text-muted">Officer</span>
@@ -495,6 +528,9 @@ function CaseFilters({ filters, setFilters, resetFilters, users }: { filters: Ca
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wide text-muted">Confidentiality</span>
                     <Select value={filters.confidentiality} onChange={(event) => setFilters({ ...filters, confidentiality: event.target.value })}><option value="">All confidentiality</option><option value="standard">Standard</option><option value="confidential">Confidential</option></Select>
+                  </label>
+                  <label className="flex h-11 items-center gap-2 self-end rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink">
+                    <input type="checkbox" checked={Boolean(filters.highRisk)} onChange={(event) => setFilters({ ...filters, highRisk: event.target.checked })} /> High Risk only
                   </label>
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wide text-muted">Registered from</span>
@@ -545,15 +581,15 @@ function CasesPage() {
   const canCreate = canDo('createCases');
   return (
     <>
-      <PageHeader title="Cases" description="Register, assign, review, and audit legal matters linked to Licensing system entities." action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Register Case</Button> : <Badge tone="muted">Registration restricted</Badge>} />
+      <PageHeader title="Matters" description="Register, assign, review, and audit legal matters linked to Licensing system entities." action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Register Matter</Button> : <Badge tone="muted">Registration restricted</Badge>} />
       {!canCreate ? <Card className="mb-4 p-4 text-sm text-muted">{currentUser.role} can view assigned matters but cannot register new cases.</Card> : null}
       <CaseFilters filters={filters} setFilters={setFilters} resetFilters={resetFilters} users={users} />
-      {can('viewCases') === 'assigned' ? <div className="mb-4 rounded-lg border border-line bg-white px-4 py-3 text-sm text-muted">You are viewing cases assigned to {currentUser.name}. Switch to Legal Manager, General Counsel, or CEO for the full case register.</div> : null}
-      {isLoading ? <EmptyState title="Loading cases" body="Fetching legal matters from the mock service." /> : cases.length === 0 ? <EmptyState title="No cases match these filters" body={canCreate ? 'Adjust filters or register the first matter for this role.' : 'Adjust filters or switch to a role with broader case access.'} /> : (
-        <Table><thead><tr><Th>Case No</Th><Th>Title</Th><Th>Entity</Th><Th>Type</Th><Th>Officer</Th><Th>Status</Th><Th>Registered</Th></tr></thead><tbody>
+      {can('viewCases') === 'assigned' ? <div className="mb-4 rounded-lg border border-line bg-white px-4 py-3 text-sm text-muted">You are viewing matters assigned to {currentUser.name}. Switch to Legal Manager, General Counsel, or CEO for the full matter register.</div> : null}
+      {isLoading ? <EmptyState title="Loading matters" body="Fetching legal matters from the mock service." /> : cases.length === 0 ? <EmptyState title="No matters match these filters" body={canCreate ? 'Adjust filters or register the first matter for this role.' : 'Adjust filters or switch to a role with broader matter access.'} /> : (
+        <Table><thead><tr><Th>Matter No</Th><Th>Title</Th><Th>Entity</Th><Th>Division / Sub-type</Th><Th>Officer</Th><Th>Status</Th><Th>Registered</Th></tr></thead><tbody>
           {cases.map((item) => {
-            const entity = entityMap.get(item.entityId);
-            return <tr key={item.id} className="hover:bg-maroon-100/30"><Td><RecordLink to={`/cases/${item.id}`} tone="blue">{item.caseNumber}</RecordLink></Td><Td><div className="font-bold">{item.caseTitle}</div>{item.isConfidential && <div className="mt-2"><ConfidentialBadge /></div>}</Td><Td><div className="font-semibold">{entity?.entityName ?? item.entityId}</div>{entity ? <div className="mt-1"><Badge tone={entity.entityStatus === 'Registered' ? 'green' : entity.entityStatus === 'Suspended' ? 'amber' : 'red'}>{entity.entityStatus}</Badge></div> : null}</Td><Td>{item.caseType}</Td><Td>{users.find((user) => user.id === item.responsibleOfficerId)?.name}</Td><Td><StatusBadge status={item.status} /></Td><Td>{formatDate(item.dateOpened)}</Td></tr>;
+            const entity = item.entityId ? entityMap.get(item.entityId) : undefined;
+            return <tr key={item.id} className="hover:bg-maroon-100/30"><Td><RecordLink to={`/cases/${item.id}`} tone="blue">{item.caseNumber}</RecordLink></Td><Td><div className="font-bold">{item.caseTitle}</div><div className="mt-2 flex flex-wrap gap-1">{(item.confidentiality === 'Confidential' || item.confidentiality === 'Executive Confidential') && <ConfidentialBadge />}{item.isHighRisk && <HighRiskBadge />}</div></Td><Td>{item.entityId ? (<><div className="font-semibold">{entity?.entityName ?? item.entityId}</div>{entity ? <div className="mt-1"><Badge tone={entity.entityStatus === 'Registered' ? 'green' : entity.entityStatus === 'Suspended' ? 'amber' : 'red'}>{entity.entityStatus}</Badge></div> : null}</>) : <span className="text-xs font-semibold text-muted">Internal matter</span>}</Td><Td><div className="text-xs text-muted">{item.caseDivision}</div><div className="font-semibold">{item.caseSubType}</div></Td><Td>{users.find((user) => user.id === item.responsibleOfficerId)?.name}</Td><Td><StatusBadge status={item.status} /></Td><Td>{formatDate(item.dateOpened)}</Td></tr>;
           })}
         </tbody></Table>
       )}
@@ -586,18 +622,24 @@ function CaseDetailPage() {
   const [docLinkOpen, setDocLinkOpen] = useState(false);
   const [corrRegisterOpen, setCorrRegisterOpen] = useState(false);
   const [corrLinkOpen, setCorrLinkOpen] = useState(false);
-  const backLink = useBackLink('/cases', 'Back to Cases');
+  const backLink = useBackLink('/cases', 'Back to Matters');
   if (isLoading) return <EmptyState title="Loading case" body="Resolving case access and details." />;
   if (!item) return <EmptyState title="Access restricted" body="This matter is confidential or no longer exists for the current role." />;
   const legalUsers = users.filter((user) => user.role.includes('Legal') || user.role === 'General Counsel');
   const mapCases = relationshipCases.some((caseItem) => caseItem.id === item.id) ? relationshipCases : [...relationshipCases, item];
-  const canClose = canForCase('closeCases', item);
-  const statusOptions = CASE_STATUSES.filter((status) => canClose || (status !== 'Closed' && status !== 'Archived'));
+  const canInitiate = canForCase('initiateClosure', item);
+  const canApprove = canForCase('approveClosure', item);
+  const statusOptions = CASE_STATUSES.filter((status) => {
+    if (status === 'Closed' || status === 'Archived') return canApprove;
+    if (status === 'Pending Closure') return canInitiate;
+    return true;
+  });
   const closePending = () => { setPendingStatus(null); setReason(''); };
+  const activeStatus = !['Closed', 'Archived', 'Pending Closure'].includes(item.status);
   return (
     <>
       <BackLink to={backLink.to}>{backLink.label}</BackLink>
-      <PageHeader title={`${item.caseNumber} · ${item.caseTitle}`} description={item.description} action={<div className="flex shrink-0 flex-nowrap justify-end gap-2">{item.isConfidential && <ConfidentialBadge />}{canForCase('editCases', item) && <Button variant="secondary" className="w-32" onClick={() => setEditOpen(true)}>Edit Case</Button>}{canClose && item.status !== 'Closed' && <Button className="w-32" onClick={() => setPendingStatus('Closed')}>Close Case</Button>}</div>} />
+      <PageHeader title={`${item.caseNumber} · ${item.caseTitle}`} description={item.description} action={<div className="flex shrink-0 flex-nowrap justify-end gap-2">{item.isHighRisk && <HighRiskBadge />}{(item.confidentiality === 'Confidential' || item.confidentiality === 'Executive Confidential') && <ConfidentialBadge />}{canForCase('editCases', item) && <Button variant="secondary" onClick={() => setEditOpen(true)}>Edit Case</Button>}{canInitiate && activeStatus && <Button variant="secondary" onClick={() => setPendingStatus('Pending Closure')}>Submit for Closure</Button>}{canApprove && item.status === 'Pending Closure' && <Button variant="secondary" onClick={() => setPendingStatus('Open')}>Reject Closure</Button>}{canApprove && item.status === 'Pending Closure' && <Button onClick={() => setPendingStatus('Closed')}>Approve Closure</Button>}</div>} />
       <div className="mb-4 flex gap-2 overflow-auto">{[{ id: 'overview', label: 'Overview' }, { id: 'documents', label: 'Documents' }, { id: 'correspondence', label: 'Correspondence' }, { id: 'notes', label: 'Notes' }, { id: 'activities', label: 'Activities' }, { id: 'relationships', label: 'Relationships' }].map((tabItem) => <Button key={tabItem.id} variant={tab === tabItem.id ? 'primary' : 'secondary'} onClick={() => setTab(tabItem.id)}>{tabItem.label}</Button>)}</div>
       {tab === 'overview' && (() => {
         const teamMembers = (item.grantedUserIds ?? []).map((userId) => users.find((user) => user.id === userId)).filter((user): user is User => Boolean(user));
@@ -609,7 +651,7 @@ function CaseDetailPage() {
         };
         return (
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="p-5 lg:col-span-2"><h2 className="text-lg font-bold">Matter Overview</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2"><div><dt className="text-sm text-muted">Type</dt><dd className="font-semibold">{item.caseType}</dd></div><div><dt className="text-sm text-muted">Officer</dt><dd className="font-semibold">{users.find((user) => user.id === item.responsibleOfficerId)?.name}</dd></div><div><dt className="text-sm text-muted">Registered</dt><dd>{formatDate(item.dateOpened)}</dd></div><div><dt className="text-sm text-muted">Closed</dt><dd>{item.dateClosed ? formatDate(item.dateClosed) : 'Not closed'}</dd></div><div><dt className="text-sm text-muted">Status</dt><dd><StatusBadge status={item.status} /></dd></div><div><dt className="text-sm text-muted">Confidential class</dt><dd>{item.confidentialClass ?? 'Standard'}</dd></div></dl><div className="mt-5 border-t border-line pt-4"><h3 className="text-sm font-bold text-muted">Recent activity</h3><div className="mt-3 space-y-2">{activities.slice(0, 3).map((activity) => <div key={activity.id} className="rounded-lg bg-maroon-100/40 px-3 py-2 text-sm"><strong>{activity.type}</strong><p className="text-muted">{activity.description}</p></div>)}</div></div></Card>
+            <Card className="p-5 lg:col-span-2"><h2 className="text-lg font-bold">Matter Overview</h2>{item.status === 'Pending Closure' && <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800"><strong>Awaiting General Counsel approval to close.</strong> This matter was submitted for closure by {users.find((u) => u.id === item.closureInitiatedBy)?.name ?? 'Legal Manager'}.</div>}{item.isHighRisk && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"><strong>⚑ High Risk matter.</strong> Flagged by {users.find((u) => u.id === item.highRiskSetBy)?.name ?? 'senior officer'} on {formatDate(item.highRiskSetAt)}.</div>}<dl className="mt-4 grid gap-4 sm:grid-cols-2"><div><dt className="text-sm text-muted">Division</dt><dd className="font-semibold">{item.caseDivision}</dd></div><div><dt className="text-sm text-muted">Sub-type</dt><dd className="font-semibold">{item.caseSubType}</dd></div><div><dt className="text-sm text-muted">Officer</dt><dd className="font-semibold">{users.find((user) => user.id === item.responsibleOfficerId)?.name}</dd></div><div><dt className="text-sm text-muted">Registered</dt><dd>{formatDate(item.dateOpened)}</dd></div><div><dt className="text-sm text-muted">Closed</dt><dd>{item.dateClosed ? formatDate(item.dateClosed) : 'Not closed'}</dd></div><div><dt className="text-sm text-muted">Status</dt><dd><StatusBadge status={item.status} /></dd></div><div><dt className="text-sm text-muted">Confidential class</dt><dd>{item.confidentialClass ?? 'Standard'}</dd></div></dl><div className="mt-5 border-t border-line pt-4"><h3 className="text-sm font-bold text-muted">Recent activity</h3><div className="mt-3 space-y-2">{activities.slice(0, 3).map((activity) => <div key={activity.id} className="rounded-lg bg-maroon-100/40 px-3 py-2 text-sm"><strong>{activity.type}</strong><p className="text-muted">{activity.description}</p></div>)}</div></div></Card>
             <div className="space-y-4">
               <Card className="p-5"><h2 className="mb-3 text-lg font-bold">Linked Entity</h2><EntityBadge id={item.entityId} /></Card>
               <Card className="p-5">
@@ -683,20 +725,27 @@ function CaseEditForm({ item, open, onClose }: { item: Case; open: boolean; onCl
   const { users } = useSession();
   const { can, canForCase, currentUser } = usePermission();
   const { updateCase } = useCaseMutations();
-  const [isConfidential, setIsConfidential] = useState(item.isConfidential);
+  const [caseConfidentiality, setCaseConfidentiality] = useState<ConfidentialityLevel>(item.confidentiality);
+  const [isHighRisk, setIsHighRisk] = useState(Boolean(item.isHighRisk));
   const [selectedStatus, setSelectedStatus] = useState(item.status);
+  const [editDivision, setEditDivision] = useState<CaseDivision>(item.caseDivision);
+  const [editSubType, setEditSubType] = useState<string>(item.caseSubType);
   useEffect(() => {
     if (open) {
-      setIsConfidential(item.isConfidential);
+      setCaseConfidentiality(item.confidentiality);
+      setIsHighRisk(Boolean(item.isHighRisk));
       setSelectedStatus(item.status);
+      setEditDivision(item.caseDivision);
+      setEditSubType(item.caseSubType);
     }
-  }, [open, item.isConfidential, item.status]);
+  }, [open, item.confidentiality, item.isHighRisk, item.status, item.caseDivision, item.caseSubType]);
   const canDowngradeConfidentiality = can('editCases') === 'full';
-  const confidentialityLocked = item.isConfidential && !canDowngradeConfidentiality;
+  const confidentialityLocked = CONFIDENTIALITY_RANK[item.confidentiality] >= 2 && !canDowngradeConfidentiality;
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const confidential = confidentialityLocked ? true : form.get('isConfidential') === 'on';
+    const effectiveConfidentiality = confidentialityLocked ? item.confidentiality : caseConfidentiality;
+    const isConfidential = effectiveConfidentiality === 'Confidential' || effectiveConfidentiality === 'Executive Confidential';
     const nextStatus = String(form.get('status')) as CaseInput['status'];
     const statusChanged = nextStatus !== item.status;
     const reason = String(form.get('statusReason') ?? '').trim();
@@ -708,24 +757,28 @@ function CaseEditForm({ item, open, onClose }: { item: Case; open: boolean; onCl
       if (access === 'view' || access === 'edit') viewGrants.push(user.id);
       if (access === 'edit') editGrants.push(user.id);
     }
-    const needsAutoGrant = confidential && currentUser.role !== 'CEO' && currentUser.role !== 'General Counsel' && nextResponsibleOfficerId !== currentUser.id && !viewGrants.includes(currentUser.id);
+    const needsAutoGrant = isConfidential && currentUser.role !== 'CEO' && currentUser.role !== 'General Counsel' && nextResponsibleOfficerId !== currentUser.id && !viewGrants.includes(currentUser.id);
     const patch: Partial<CaseInput> = {
       caseTitle: String(form.get('caseTitle')),
-      entityId: String(form.get('entityId')),
-      caseType: String(form.get('caseType')) as CaseInput['caseType'],
+      entityId: String(form.get('entityId')) || null,
+      caseDivision: editDivision,
+      caseSubType: editSubType,
       description: String(form.get('description')),
       dateOpened: String(form.get('dateOpened')),
-      isConfidential: confidential,
-      confidentialClass: confidential ? (confidentialityLocked ? item.confidentialClass : String(form.get('confidentialClass')) as CaseInput['confidentialClass']) : null,
+      confidentiality: effectiveConfidentiality,
+      confidentialClass: isConfidential ? (confidentialityLocked ? item.confidentialClass : String(form.get('confidentialClass')) as CaseInput['confidentialClass']) : null,
       grantedUserIds: needsAutoGrant ? [...viewGrants, currentUser.id] : viewGrants,
       grantedEditUserIds: needsAutoGrant ? [...editGrants, currentUser.id] : editGrants,
     };
     if (canForCase('assignCases', item)) patch.responsibleOfficerId = nextResponsibleOfficerId;
     if (canForCase('editCases', item)) patch.status = nextStatus;
+    if (canForCase('setHighRisk', item)) patch.isHighRisk = isHighRisk;
     await updateCase.mutateAsync({ id: item.id, patch, reason: statusChanged ? reason : undefined });
     onClose();
   }
-  const canClose = canForCase('closeCases', item);
+  const canApproveEdit = canForCase('approveClosure', item);
+  const canInitiateEdit = canForCase('initiateClosure', item);
+  const canSetHighRiskEdit = canForCase('setHighRisk', item);
   const legalUsers = users.filter((user) => user.role.includes('Legal') || user.role === 'General Counsel');
   const grantableUsers = users.filter((user) => (user.role.includes('Legal') || user.role === 'General Counsel' || user.role === 'Executive Officer') && user.id !== item.responsibleOfficerId);
   const initialTeamIds = useMemo(
@@ -748,31 +801,38 @@ function CaseEditForm({ item, open, onClose }: { item: Case; open: boolean; onCl
     if (tier === 'assigned') return grantedEdit ? 'edit' : 'view';
     return 'view';
   }
-  const statusOptions = CASE_STATUSES.filter((status) => canClose || (status !== 'Closed' && status !== 'Archived'));
+  const statusOptions = CASE_STATUSES.filter((status) => {
+    if (status === 'Closed' || status === 'Archived') return canApproveEdit;
+    if (status === 'Pending Closure') return canInitiateEdit;
+    return true;
+  });
   const statusChanged = selectedStatus !== item.status;
   return (
-    <Modal title={`Edit Case - ${item.caseNumber}`} open={open} onClose={onClose}>
+    <Modal title={`Edit Matter - ${item.caseNumber}`} open={open} onClose={onClose}>
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-dashed border-line bg-maroon-100/40 px-3 py-2 text-sm font-semibold text-muted md:col-span-2">Case number: {item.caseNumber} (fixed)</div>
+        <div className="rounded-lg border border-dashed border-line bg-maroon-100/40 px-3 py-2 text-sm font-semibold text-muted md:col-span-2">Matter number: {item.caseNumber} (fixed)</div>
         <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Case title</span><Input name="caseTitle" required minLength={3} defaultValue={item.caseTitle} /></label>
-        <label className="space-y-1"><span className="text-sm font-semibold">Entity</span><Select name="entityId" required defaultValue={item.entityId}>{entities.map((entity) => <option key={entity.entityId} value={entity.entityId}>{entity.entityName}</option>)}</Select></label>
-        <label className="space-y-1"><span className="text-sm font-semibold">Case type</span><Select name="caseType" defaultValue={item.caseType}>{CASE_TYPES.map((type) => <option key={type}>{type}</option>)}</Select></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Entity <span className="font-normal text-muted">(optional)</span></span><Select name="entityId" defaultValue={item.entityId ?? ''}><option value="">No entity — internal / HR / supplier matter</option>{entities.map((entity) => <option key={entity.entityId} value={entity.entityId}>{entity.entityName}</option>)}</Select></label>
+        <DivisionSubTypePicker division={editDivision} subType={editSubType} onChange={(d, s) => { setEditDivision(d); setEditSubType(s); }} />
         {canForCase('assignCases', item) && <label className="space-y-1"><span className="text-sm font-semibold">Responsible officer</span><Select name="responsibleOfficerId" defaultValue={item.responsibleOfficerId}>{legalUsers.map((user) => <option value={user.id} key={user.id}>{user.name}</option>)}</Select></label>}
         {canForCase('editCases', item) && (
           <label className="space-y-1">
             <span className="text-sm font-semibold">Status</span>
-            <div className="flex gap-2">
-              <Select name="status" value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as Case['status'])}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</Select>
-              {canClose && item.status !== 'Closed' && selectedStatus !== 'Closed' && <Button type="button" variant="secondary" className="shrink-0" onClick={() => setSelectedStatus('Closed')}>Close Case</Button>}
-            </div>
+            <Select name="status" value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as Case['status'])}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</Select>
+          </label>
+        )}
+        {canSetHighRiskEdit && (
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-white px-3 py-2.5 self-end">
+            <input type="checkbox" checked={isHighRisk} onChange={(e) => setIsHighRisk(e.target.checked)} className="h-4 w-4 accent-red-600" />
+            <span className="text-sm font-semibold text-red-700">⚑ High Risk matter</span>
           </label>
         )}
         <div className="space-y-2 md:col-span-2">
-          <span className="text-sm font-semibold">{isConfidential ? 'Granted access' : 'Case team'}</span>
+          <span className="text-sm font-semibold">{caseConfidentiality !== 'Public' && caseConfidentiality !== 'Restricted' ? 'Granted access' : 'Matter team'}</span>
           <p className="text-xs text-muted">
-            {isConfidential
-              ? 'The responsible officer and CEO/General Counsel can always view this case. Choose what access anyone else gets.'
-              : 'Senior Legal Officers, Legal Officers, and Executive Officers can only see and work on cases they own or are added to here. Choose what access anyone else gets.'}
+            {caseConfidentiality !== 'Public' && caseConfidentiality !== 'Restricted'
+              ? 'The responsible officer and CEO/General Counsel can always view this matter. Choose what access anyone else gets.'
+              : 'Senior Legal Officers, Legal Officers, and Executive Officers can only see and work on matters they own or are added to here. Choose what access anyone else gets.'}
           </p>
           <CaseTeamPicker users={grantableUsers} selectedIds={teamUserIds} onToggle={toggleTeamUser} />
           {teamUsers.length > 0 && (
@@ -796,14 +856,9 @@ function CaseEditForm({ item, open, onClose }: { item: Case; open: boolean; onCl
         <label className="space-y-1"><span className="text-sm font-semibold">Registration date</span><Input type="date" name="dateOpened" defaultValue={item.dateOpened} required /></label>
         <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Description</span><Textarea name="description" required defaultValue={item.description} /></label>
         {statusChanged && <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Status change reason</span><Textarea name="statusReason" required placeholder={`Why is the status changing from ${item.status} to ${selectedStatus}?`} /></label>}
-        <ConfidentialToggle
-          checked={isConfidential}
-          onChange={setIsConfidential}
-          locked={confidentialityLocked}
-          lockedHint={confidentialityLocked ? 'Only a Legal Manager, Senior Legal Officer, or General Counsel can remove confidentiality protection from this case.' : undefined}
-        />
-        <label className="space-y-1"><span className="text-sm font-semibold">Confidential class</span><Select name="confidentialClass" disabled={!isConfidential || confidentialityLocked} required={isConfidential} defaultValue={item.confidentialClass ?? undefined}>{CONFIDENTIAL_CLASSES.map((cls) => <option key={cls}>{cls}</option>)}</Select></label>
-        <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={updateCase.isPending}>{selectedStatus === 'Closed' && statusChanged ? 'Save & Close Case' : 'Save changes'}</Button></div>
+        <label className="space-y-1"><span className="text-sm font-semibold">Confidentiality level{confidentialityLocked ? <span className="ml-1 text-xs font-normal text-muted">(locked — insufficient role)</span> : ''}</span><Select value={caseConfidentiality} onChange={(e) => setCaseConfidentiality(e.target.value as ConfidentialityLevel)} disabled={confidentialityLocked}>{CONFIDENTIALITY_LEVELS.map((lvl) => <option key={lvl}>{lvl}</option>)}</Select></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Confidential class <span className="font-normal text-muted">(optional)</span></span><Select name="confidentialClass" disabled={caseConfidentiality !== 'Confidential' && caseConfidentiality !== 'Executive Confidential'} defaultValue={item.confidentialClass ?? ''}><option value="">None</option>{CONFIDENTIAL_CLASSES.map((cls) => <option key={cls}>{cls}</option>)}</Select></label>
+        <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={updateCase.isPending}>{selectedStatus === 'Closed' && statusChanged ? 'Save & Close Matter' : 'Save changes'}</Button></div>
       </form>
     </Modal>
   );
@@ -1055,6 +1110,44 @@ function DocumentEditForm({ item, open, onClose }: { item: LegalDocument; open: 
   );
 }
 
+function TemplateUploadForm({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { uploadDocument } = useDocumentMutations();
+  const [fileName, setFileName] = useState('');
+  useEffect(() => { if (!open) setFileName(''); }, [open]);
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    if (!fileName) return;
+    await uploadDocument.mutateAsync({
+      title: String(form.get('title')),
+      category: String(form.get('category')) as DocumentInput['category'],
+      fileName,
+      entityId: null, caseId: null, correspondenceId: null,
+      status: 'Active',
+      isConfidential: false,
+      classification: 'Public',
+      isTemplate: true,
+      templateType: String(form.get('templateType')),
+    });
+    onClose();
+  }
+  return (
+    <Modal title="Upload Template / Precedent" open={open} onClose={onClose}>
+      <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-dashed border-line bg-maroon-100/40 px-3 py-2 text-sm text-muted md:col-span-2">Templates are stored in the shared library and are not linked to any specific case or entity.</div>
+        <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Template title</span><Input name="title" required /></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Template type</span><Select name="templateType">{TEMPLATE_TYPES.map((t) => <option key={t}>{t}</option>)}</Select></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Document category</span><Select name="category">{DOCUMENT_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</Select></label>
+        <label className="space-y-1 md:col-span-2">
+          <span className="text-sm font-semibold">File name <span className="font-normal text-muted">(simulated)</span></span>
+          <Input value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g. standard-notice-v3.docx" required />
+        </label>
+        <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={uploadDocument.isPending || !fileName}>Upload Template</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 type DocumentListFilters = { query: string; category: string; status: string; dateFrom: string; dateTo: string; sortBy: string };
 const emptyDocumentFilters: DocumentListFilters = { query: '', category: '', status: '', dateFrom: '', dateTo: '', sortBy: '' };
 
@@ -1140,11 +1233,15 @@ function DocumentsPage() {
   const resetFilters = () => setFilters(emptyDocumentFilters);
   return (
     <>
-      <PageHeader title="Documents" description="Versioned repository for legal opinions, court documents, contracts, gazettals, and correspondence attachments." action={canDo('uploadDocuments') ? <Button onClick={() => setOpen(true)}><FilePlus2 className="h-4 w-4" /> Upload Document</Button> : null} />
+      <PageHeader
+        title="Documents"
+        description="Versioned repository for legal opinions, court documents, contracts, gazettals, and correspondence attachments."
+        action={canDo('uploadDocuments') ? <Button onClick={() => setOpen(true)}><FilePlus2 className="h-4 w-4" /> Upload Document</Button> : null}
+      />
       <DocumentFilters filters={filters} setFilters={setFilters} resetFilters={resetFilters} />
       <LinkedDocuments docs={docs} />
-      <DocumentForm open={open} onClose={() => setOpen(false)} />
       <div className="mt-4 text-sm text-muted">{docs.length} records · Uploaded by values resolve to demo users such as {users[1].name}.</div>
+      <DocumentForm open={open} onClose={() => setOpen(false)} />
     </>
   );
 }
@@ -1201,7 +1298,7 @@ function DocumentDetailPage() {
             <h2 className="mb-3 text-lg font-bold">Primary Links</h2>
             <div className="space-y-4">
               <div><p className="mb-1 text-sm text-muted">Entity</p><EntityBadge id={doc.entityId} /></div>
-              <div><p className="mb-1 text-sm text-muted">Case</p>{doc.caseId ? <RecordLink to={`/cases/${doc.caseId}`} tone="blue">Open case</RecordLink> : <span className="text-muted">No linked case</span>}</div>
+              <div><p className="mb-1 text-sm text-muted">Matter</p>{doc.caseId ? <RecordLink to={`/cases/${doc.caseId}`} tone="blue">Open matter</RecordLink> : <span className="text-muted">No linked matter</span>}</div>
               <div><p className="mb-1 text-sm text-muted">Related cases</p><RelatedCaseLinks ids={doc.relatedCaseIds} cases={cases} /></div>
             </div>
           </Card>
@@ -1219,7 +1316,7 @@ function DocumentDetailPage() {
       )}
       {tab === 'linked' && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Linked Case & Entity</h2><div className="space-y-4"><div><p className="mb-1 text-sm text-muted">Entity</p><EntityBadge id={doc.entityId} /></div><div><p className="mb-1 text-sm text-muted">Primary case</p>{doc.caseId ? <RecordLink to={`/cases/${doc.caseId}`} tone="blue">Open case</RecordLink> : <span className="text-muted">No linked case</span>}</div><div><p className="mb-1 text-sm text-muted">Related cases</p><RelatedCaseLinks ids={doc.relatedCaseIds} cases={cases} /></div></div></Card>
+          <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Linked Matter & Entity</h2><div className="space-y-4"><div><p className="mb-1 text-sm text-muted">Entity</p><EntityBadge id={doc.entityId} /></div><div><p className="mb-1 text-sm text-muted">Primary case</p>{doc.caseId ? <RecordLink to={`/cases/${doc.caseId}`} tone="blue">Open case</RecordLink> : <span className="text-muted">No linked case</span>}</div><div><p className="mb-1 text-sm text-muted">Related cases</p><RelatedCaseLinks ids={doc.relatedCaseIds} cases={cases} /></div></div></Card>
           <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Related Correspondence</h2><LinkedCorrespondence items={linkedCorrespondence} /></Card>
         </div>
       )}
@@ -1310,14 +1407,20 @@ function CorrespondenceForm({ open, onClose, lockedCase }: { open: boolean; onCl
   const { data: entities = [] } = useEntities();
   const { data: cases = [] } = useCases();
   const { createCorrespondence } = useCorrespondenceMutations();
+  const { currentUser } = useSession();
   const [assignees, setAssignees] = useState<string[]>([]);
-  useEffect(() => { if (open) setAssignees([]); }, [open]);
+  const [direction, setDirection] = useState<'Incoming' | 'Outgoing'>('Incoming');
+  const [isLegalMatter, setIsLegalMatter] = useState(false);
+  useEffect(() => { if (open) { setAssignees([]); setDirection('Incoming'); setIsLegalMatter(false); } }, [open]);
+  const isOutgoing = direction === 'Outgoing';
+  const canSetLegalMatter = currentUser.role === 'General Counsel';
+  const signoffRole = isOutgoing ? (isLegalMatter ? 'General Counsel' : 'CEO') : null;
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const input: CorrespondenceInput = {
       subject: String(form.get('subject')),
-      direction: String(form.get('direction')) as CorrespondenceInput['direction'],
+      direction,
       date: String(form.get('date')),
       sender: String(form.get('sender')),
       recipient: String(form.get('recipient')),
@@ -1333,6 +1436,7 @@ function CorrespondenceForm({ open, onClose, lockedCase }: { open: boolean; onCl
       attachments: [],
       status: String(form.get('status')) as CorrespondenceInput['status'],
       closedDate: null,
+      isLegalMatter: isOutgoing ? isLegalMatter : undefined,
     };
     await createCorrespondence.mutateAsync(input);
     onClose();
@@ -1341,7 +1445,7 @@ function CorrespondenceForm({ open, onClose, lockedCase }: { open: boolean; onCl
     <Modal title="New CEO Correspondence" open={open} onClose={onClose}>
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
         {lockedCase && <div className="rounded-lg border border-dashed border-line bg-maroon-100/40 px-3 py-2 text-sm font-semibold text-muted md:col-span-2">Linked to case: {lockedCase.caseNumber} · {lockedCase.caseTitle} (fixed)</div>}
-        <label className="space-y-1"><span className="text-sm font-semibold">Direction</span><Select name="direction"><option>Incoming</option><option>Outgoing</option></Select></label>
+        <label className="space-y-1"><span className="text-sm font-semibold">Direction</span><Select name="direction" value={direction} onChange={(e) => { setDirection(e.target.value as 'Incoming' | 'Outgoing'); setIsLegalMatter(false); }}><option>Incoming</option><option>Outgoing</option></Select></label>
         <label className="space-y-1"><span className="text-sm font-semibold">Date</span><Input type="date" name="date" defaultValue={today()} /></label>
         <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Subject</span><Input name="subject" required /></label>
         <label className="space-y-1"><span className="text-sm font-semibold">Sender</span><Input name="sender" required /></label>
@@ -1359,6 +1463,22 @@ function CorrespondenceForm({ open, onClose, lockedCase }: { open: boolean; onCl
         {!lockedCase && <label className="space-y-1"><span className="text-sm font-semibold">Case</span><Select name="caseId"><option value="">No case</option>{cases.map((item) => <option value={item.id} key={item.id}>{item.caseNumber}</option>)}</Select></label>}
         <label className="space-y-1"><span className="text-sm font-semibold">Response Reference</span><Input name="responseReference" placeholder="Linked response doc/letter (optional)" /></label>
         <label className="space-y-1"><span className="text-sm font-semibold">Status</span><Select name="status">{CORRESPONDENCE_STATUSES.map((value) => <option key={value}>{value}</option>)}</Select></label>
+        {isOutgoing && (
+          <div className="md:col-span-2">
+            <label className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition ${canSetLegalMatter ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'} ${isLegalMatter ? 'border-blue-400 bg-blue-50 shadow-sm ring-2 ring-blue-200' : 'border-blue-100 bg-blue-50/40 hover:border-blue-300 hover:bg-blue-50'}`}>
+              <span className="flex min-w-0 items-center gap-3">
+                <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${isLegalMatter ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 ring-1 ring-blue-100'}`}><ShieldCheck className="h-5 w-5" /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-blue-800">Legal Matter (General Counsel sign-off)</span>
+                  <span className="mt-0.5 block text-xs font-medium text-muted">{canSetLegalMatter ? 'Tick if this is a legal matter — sign-off routes to General Counsel instead of CEO.' : 'Only General Counsel can classify a matter as a legal exception.'}</span>
+                </span>
+              </span>
+              <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-black ${isLegalMatter ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 ring-1 ring-blue-100'}`}>{isLegalMatter ? 'Legal exception' : 'Default (CEO)'}</span>
+              <input type="checkbox" checked={isLegalMatter} disabled={!canSetLegalMatter} onChange={(e) => setIsLegalMatter(e.target.checked)} className="sr-only" />
+            </label>
+            {signoffRole && <p className="mt-1.5 px-1 text-xs font-semibold text-muted">Sign-off required from: <strong>{signoffRole}</strong></p>}
+          </div>
+        )}
         <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button>Register</Button></div>
       </form>
     </Modal>
@@ -1369,11 +1489,16 @@ function CorrespondenceEditForm({ item, open, onClose }: { item: Correspondence;
   const { data: entities = [] } = useEntities();
   const { data: cases = [] } = useCases();
   const { updateCorrespondence } = useCorrespondenceMutations();
+  const { currentUser } = useSession();
   const [status, setStatus] = useState(item.status);
   const [assignees, setAssignees] = useState<string[]>(item.assignedTo);
+  const [isLegalMatter, setIsLegalMatter] = useState(item.isLegalMatter ?? false);
+  const isOutgoing = item.direction === 'Outgoing';
+  const canSetLegalMatter = currentUser.role === 'General Counsel';
+  const signoffRole = isOutgoing ? (isLegalMatter ? 'General Counsel' : 'CEO') : null;
   useEffect(() => {
-    if (open) { setStatus(item.status); setAssignees(item.assignedTo); }
-  }, [open, item.status, item.assignedTo]);
+    if (open) { setStatus(item.status); setAssignees(item.assignedTo); setIsLegalMatter(item.isLegalMatter ?? false); }
+  }, [open, item.status, item.assignedTo, item.isLegalMatter]);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1395,6 +1520,7 @@ function CorrespondenceEditForm({ item, open, onClose }: { item: Correspondence;
       caseId: String(form.get('caseId')) || null,
       status: nextStatus,
       closedDate: nextStatus === 'Closed' ? (item.closedDate ?? today()) : null,
+      isLegalMatter: isOutgoing ? isLegalMatter : undefined,
     };
     await updateCorrespondence.mutateAsync({ id: item.id, patch });
     onClose();
@@ -1418,6 +1544,22 @@ function CorrespondenceEditForm({ item, open, onClose }: { item: Correspondence;
         <label className="space-y-1"><span className="text-sm font-semibold">Case</span><Select name="caseId" defaultValue={item.caseId ?? ''}><option value="">No case</option>{cases.map((caseItem) => <option value={caseItem.id} key={caseItem.id}>{caseItem.caseNumber}</option>)}</Select></label>
         <label className="space-y-1 md:col-span-2"><span className="text-sm font-semibold">Response Reference</span><Input name="responseReference" defaultValue={item.responseReference ?? ''} placeholder="Linked response doc/letter (optional)" /></label>
         <label className="space-y-1"><span className="text-sm font-semibold">Status</span><Select name="status" value={status} onChange={(event) => setStatus(event.target.value as Correspondence['status'])}>{CORRESPONDENCE_STATUSES.map((value) => <option key={value}>{value}</option>)}</Select></label>
+        {isOutgoing && (
+          <div className="md:col-span-2">
+            <label className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition ${canSetLegalMatter ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'} ${isLegalMatter ? 'border-blue-400 bg-blue-50 shadow-sm ring-2 ring-blue-200' : 'border-blue-100 bg-blue-50/40 hover:border-blue-300 hover:bg-blue-50'}`}>
+              <span className="flex min-w-0 items-center gap-3">
+                <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${isLegalMatter ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 ring-1 ring-blue-100'}`}><ShieldCheck className="h-5 w-5" /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-blue-800">Legal Matter (General Counsel sign-off)</span>
+                  <span className="mt-0.5 block text-xs font-medium text-muted">{canSetLegalMatter ? 'Tick if this is a legal matter — sign-off routes to General Counsel instead of CEO.' : 'Only General Counsel can classify a matter as a legal exception.'}</span>
+                </span>
+              </span>
+              <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-black ${isLegalMatter ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 ring-1 ring-blue-100'}`}>{isLegalMatter ? 'Legal exception' : 'Default (CEO)'}</span>
+              <input type="checkbox" checked={isLegalMatter} disabled={!canSetLegalMatter} onChange={(e) => setIsLegalMatter(e.target.checked)} className="sr-only" />
+            </label>
+            {signoffRole && <p className="mt-1.5 px-1 text-xs font-semibold text-muted">Sign-off required from: <strong>{signoffRole}</strong></p>}
+          </div>
+        )}
         <div className="flex justify-end gap-3 md:col-span-2"><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={updateCorrespondence.isPending}>Save changes</Button></div>
       </form>
     </Modal>
@@ -1524,19 +1666,22 @@ function CorrespondenceDetailPage() {
   const docs = useDocuments({ correspondenceId: id }).data ?? [];
   const { data: audit = [] } = useAudit();
   const { approveCorrespondence, updateCorrespondence } = useCorrespondenceMutations();
-  const { canDo } = usePermission();
+  const { canDo, currentUser } = usePermission();
   const [tab, setTab] = useState('overview');
   const [editOpen, setEditOpen] = useState(false);
   const backLink = useBackLink('/correspondence', 'Back to CEO Correspondence');
   if (!item) return <EmptyState title="Correspondence unavailable" body="This record does not exist." />;
   const correspondenceAudit = audit.filter((entry) => entry.recordRef === item.correspondenceNumber);
+  const requiredSignoff = item.direction === 'Outgoing' ? (item.isLegalMatter ? 'General Counsel' : 'CEO') : null;
+  const iAmTheSignatory = requiredSignoff !== null && currentUser.role === requiredSignoff;
+  const showApproveButton = canDo('approveCorrespondence') && iAmTheSignatory && !item.approvedAt;
   return (
     <>
       <BackLink to={backLink.to}>{backLink.label}</BackLink>
       <PageHeader
         title={`${item.correspondenceNumber} · ${item.subject}`}
-        description={`${item.direction} correspondence from ${item.sender} to ${item.recipient}`}
-        action={<div className="flex shrink-0 flex-nowrap items-center gap-2">{canDo('registerCorrespondence') && <Button variant="secondary" className="w-44" onClick={() => setEditOpen(true)}>Edit Correspondence</Button>}{canDo('approveCorrespondence') && !item.approvedAt && <Button onClick={() => approveCorrespondence.mutate(item.id)}><ShieldCheck className="h-4 w-4" /> Approve</Button>}<Select value={item.status} onChange={(event) => updateCorrespondence.mutate({ id: item.id, patch: { status: event.target.value as CorrespondenceInput['status'] } })}>{CORRESPONDENCE_STATUSES.map((value) => <option key={value}>{value}</option>)}</Select></div>}
+        description={`${item.direction} correspondence from ${item.sender} to ${item.recipient}${item.isLegalMatter ? ' · Legal matter' : ''}`}
+        action={<div className="flex shrink-0 flex-nowrap items-center gap-2">{canDo('registerCorrespondence') && <Button variant="secondary" className="w-44" onClick={() => setEditOpen(true)}>Edit Correspondence</Button>}{showApproveButton && <Button onClick={() => approveCorrespondence.mutate(item.id)}><ShieldCheck className="h-4 w-4" /> Sign Off</Button>}{canDo('approveCorrespondence') && !iAmTheSignatory && requiredSignoff && !item.approvedAt && <span className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-muted">Sign-off: {requiredSignoff}</span>}<Select value={item.status} onChange={(event) => updateCorrespondence.mutate({ id: item.id, patch: { status: event.target.value as CorrespondenceInput['status'] } })}>{CORRESPONDENCE_STATUSES.map((value) => <option key={value}>{value}</option>)}</Select></div>}
       />
       <div className="mb-4 flex gap-2 overflow-auto">
         {[
@@ -1566,13 +1711,17 @@ function CorrespondenceDetailPage() {
               <div><dt className="text-sm text-muted">Recipient</dt><dd className="font-semibold">{item.recipient}</dd></div>
               <div className="sm:col-span-2"><dt className="text-sm text-muted">Response Reference</dt><dd className="font-semibold">{item.responseReference || 'None'}</dd></div>
             </dl>
-            {item.approvedAt && <p className="mt-5 rounded-lg bg-green-50 p-3 text-sm font-semibold text-success">Approved on {formatDate(item.approvedAt)}</p>}
+            {requiredSignoff && (
+              <div className={`mt-5 rounded-lg p-3 text-sm font-semibold ${item.approvedAt ? 'bg-green-50 text-success' : 'bg-blue-50 text-blue-800 border border-blue-100'}`}>
+                {item.approvedAt ? `Signed off by ${requiredSignoff} on ${formatDate(item.approvedAt)}` : `Awaiting sign-off from: ${requiredSignoff}${item.isLegalMatter ? ' (legal matter — CEO is excluded)' : ' (standard outgoing)'}`}
+              </div>
+            )}
           </Card>
           <Card className="p-5">
             <h2 className="mb-3 text-lg font-bold">Primary Links</h2>
             <div className="space-y-4">
               <div><p className="mb-1 text-sm text-muted">Entity</p><EntityBadge id={item.entityId} /></div>
-              <div><p className="mb-1 text-sm text-muted">Case</p>{item.caseId ? <RecordLink to={`/cases/${item.caseId}`} tone="blue">Open case</RecordLink> : <span className="text-muted">No linked case</span>}</div>
+              <div><p className="mb-1 text-sm text-muted">Matter</p>{item.caseId ? <RecordLink to={`/cases/${item.caseId}`} tone="blue">Open matter</RecordLink> : <span className="text-muted">No linked matter</span>}</div>
             </div>
           </Card>
         </div>
@@ -1580,7 +1729,7 @@ function CorrespondenceDetailPage() {
       {tab === 'attachments' && <Card className="p-5"><h2 className="mb-3 text-lg font-bold">Attachments</h2><LinkedDocuments docs={docs} /></Card>}
       {tab === 'linked' && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Linked Case & Entity</h2><div className="space-y-4"><div><p className="mb-1 text-sm text-muted">Entity</p><EntityBadge id={item.entityId} /></div><div><p className="mb-1 text-sm text-muted">Case</p>{item.caseId ? <RecordLink to={`/cases/${item.caseId}`} tone="blue">Open case</RecordLink> : <span className="text-muted">No linked case</span>}</div></div></Card>
+          <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Linked Matter & Entity</h2><div className="space-y-4"><div><p className="mb-1 text-sm text-muted">Entity</p><EntityBadge id={item.entityId} /></div><div><p className="mb-1 text-sm text-muted">Matter</p>{item.caseId ? <RecordLink to={`/cases/${item.caseId}`} tone="blue">Open matter</RecordLink> : <span className="text-muted">No linked matter</span>}</div></div></Card>
           <Card className="p-5"><h2 className="mb-4 text-lg font-bold">Attached Documents</h2><LinkedDocuments docs={docs} /></Card>
         </div>
       )}
@@ -1779,13 +1928,13 @@ function ReportsPage() {
 
   // ── Derived: Cases ──
   const openCases = cases.filter((c) => !['Closed', 'Archived'].includes(c.status));
-  const highRisk = openCases.filter((c) => c.isConfidential || c.caseType === 'Litigation');
-  const courtMatters = cases.filter((c) => c.caseType === 'Litigation');
+  const highRisk = openCases.filter((c) => c.isHighRisk);
+  const courtMatters = cases.filter((c) => c.caseSubType === 'Litigation');
   const assignedToMe = openCases.filter((c) => c.responsibleOfficerId === currentUser.id);
   const underReview = cases.filter((c) => c.status === 'Under Review');
   const recentlyOpened = cases.filter((c) => c.dateOpened >= '2026-06-18');
   const caseStatus = CASE_STATUSES.map((s) => ({ name: s, value: cases.filter((c) => c.status === s).length })).filter((x) => x.value > 0);
-  const caseType = CASE_TYPES.map((t) => ({ name: t, value: cases.filter((c) => c.caseType === t).length })).filter((x) => x.value > 0);
+  const casesByDivision = CASE_DIVISIONS.map((d) => ({ name: d.replace(' & ', ' &\n'), value: cases.filter((c) => c.caseDivision === d).length })).filter((x) => x.value > 0);
   const filteredOpenCases = openCases.filter((c) => !openCasesOfficer || c.responsibleOfficerId === openCasesOfficer);
 
   // ── Derived: Documents ──
@@ -1825,7 +1974,7 @@ function ReportsPage() {
 
   const subTabs: { id: typeof tab; label: string }[] = [
     { id: 'executive', label: 'Executive' },
-    { id: 'cases', label: 'Cases' },
+    { id: 'cases', label: 'Matters' },
     { id: 'documents', label: 'Documents' },
     { id: 'correspondence', label: 'Correspondence' },
     { id: 'activity', label: 'User Activity' },
@@ -1854,14 +2003,14 @@ function ReportsPage() {
           {/* CEO / GC view */}
           <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">Legal Overview</p>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ReportStatCard label="Open Cases" value={openCases.length} />
+            <ReportStatCard label="Open Matters" value={openCases.length} />
             <ReportStatCard label="High-Risk Matters" value={highRisk.length} note="Confidential or Litigation type" />
             <ReportStatCard label="Court Matters" value={courtMatters.length} note="Litigation type cases" />
             <ReportStatCard label="Correspondence This Month" value={corrThisMonth.length} />
           </div>
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
             <Card className="p-5">
-              <h2 className="text-lg font-bold">Cases by Status</h2>
+              <h2 className="text-lg font-bold">Matters by Status</h2>
               <p className="text-sm text-muted">Distribution across all {cases.length} matters</p>
               <UniformDonutChart data={caseStatus} colors={statusChartColors} centerValue={cases.length} centerLabel="Total" />
             </Card>
@@ -1869,7 +2018,7 @@ function ReportsPage() {
               <h2 className="mb-2 text-lg font-bold">Entity Legal Exposure</h2>
               <p className="mb-4 text-sm text-muted">Entities ranked by open case count. Click Map to view relationships.</p>
               <Table>
-                <thead><tr><Th>Entity</Th><Th>Open Cases</Th><Th>Documents</Th><Th>{' '}</Th></tr></thead>
+                <thead><tr><Th>Entity</Th><Th>Open Matters</Th><Th>Documents</Th><Th>{' '}</Th></tr></thead>
                 <tbody>
                   {entityExposure.slice(0, 6).map((row) => (
                     <tr key={row.entityId} className="hover:bg-maroon-100/30">
@@ -1889,14 +2038,14 @@ function ReportsPage() {
             <div className="mt-8">
               <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">Legal Manager Operational View</p>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <ReportStatCard label="Open Cases" value={openCases.length} />
+                <ReportStatCard label="Open Matters" value={openCases.length} />
                 <ReportStatCard label="Assigned to Me" value={assignedToMe.length} />
                 <ReportStatCard label="Under Review" value={underReview.length} />
                 <ReportStatCard label="Opened This Week" value={recentlyOpened.length} />
               </div>
               <div className="mt-5">
                 <Card className="p-5">
-                  <h2 className="mb-4 text-lg font-bold">Open Cases by Officer</h2>
+                  <h2 className="mb-4 text-lg font-bold">Open Matters by Officer</h2>
                   <div className="h-64">
                     <UniformBarChart data={officerCasesChart} colors={statusChartColors} />
                   </div>
@@ -1912,39 +2061,39 @@ function ReportsPage() {
         <>
           <div className="grid gap-5 xl:grid-cols-2">
             <Card className="p-5">
-              <h2 className="text-lg font-bold">Cases by Status</h2>
+              <h2 className="text-lg font-bold">Matters by Status</h2>
               <UniformDonutChart data={caseStatus} colors={statusChartColors} centerValue={cases.length} centerLabel="Total" />
             </Card>
             <Card className="p-5">
-              <h2 className="mb-4 text-lg font-bold">Cases by Type</h2>
+              <h2 className="mb-4 text-lg font-bold">Matters by Division</h2>
               <div className="h-72">
-                <UniformBarChart data={caseType} colors={documentChartColors} />
+                <UniformBarChart data={casesByDivision} colors={documentChartColors} />
               </div>
             </Card>
           </div>
           <Card className="mt-5 p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">Open Cases ({filteredOpenCases.length})</h2>
+              <h2 className="text-lg font-bold">Open Matters ({filteredOpenCases.length})</h2>
               <div className="flex flex-wrap items-center gap-3">
                 <Select className="w-52" value={openCasesOfficer} onChange={(e) => setOpenCasesOfficer(e.target.value)}>
                   <option value="">All officers</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </Select>
                 {openCasesOfficer && <Button variant="secondary" onClick={() => setOpenCasesOfficer('')}>Clear</Button>}
-                <Button variant="secondary" onClick={() => csvDownload('open-cases.csv', filteredOpenCases.map((c) => ({ caseNumber: c.caseNumber, title: c.caseTitle, status: c.status, type: c.caseType, officer: users.find((u) => u.id === c.responsibleOfficerId)?.name ?? '', opened: c.dateOpened })))}>CSV</Button>
+                <Button variant="secondary" onClick={() => csvDownload('open-cases.csv', filteredOpenCases.map((c) => ({ caseNumber: c.caseNumber, title: c.caseTitle, status: c.status, division: c.caseDivision, subType: c.caseSubType, officer: users.find((u) => u.id === c.responsibleOfficerId)?.name ?? '', opened: c.dateOpened })))}>CSV</Button>
               </div>
             </div>
             {filteredOpenCases.length === 0 ? (
               <EmptyState title="No open cases match" body="Try clearing the officer filter." />
             ) : (
               <Table>
-                <thead><tr><Th>Case No</Th><Th>Title</Th><Th>Type</Th><Th>Status</Th><Th>Officer</Th><Th>Opened</Th></tr></thead>
+                <thead><tr><Th>Matter No</Th><Th>Title</Th><Th>Division / Sub-type</Th><Th>Status</Th><Th>Officer</Th><Th>Opened</Th></tr></thead>
                 <tbody>
                   {filteredOpenCases.map((c) => (
                     <tr key={c.id} className="hover:bg-maroon-100/30">
                       <Td><RecordLink to={`/cases/${c.id}`} tone="blue">{c.caseNumber}</RecordLink></Td>
-                      <Td className="font-semibold">{c.caseTitle}{c.isConfidential && <span className="ml-2"><ConfidentialBadge /></span>}</Td>
-                      <Td>{c.caseType}</Td>
+                      <Td className="font-semibold">{c.caseTitle}{(c.confidentiality === 'Confidential' || c.confidentiality === 'Executive Confidential') && <span className="ml-2"><ConfidentialBadge /></span>}</Td>
+                      <Td><div className="text-xs text-muted">{c.caseDivision}</div><div>{c.caseSubType}</div></Td>
                       <Td><StatusBadge status={c.status} /></Td>
                       <Td>{users.find((u) => u.id === c.responsibleOfficerId)?.name ?? c.responsibleOfficerId}</Td>
                       <Td>{formatDate(c.dateOpened)}</Td>
@@ -2086,7 +2235,7 @@ function ReportsPage() {
           )}
           <div className="grid gap-5 xl:grid-cols-2">
             <Card className="p-5">
-              <h2 className="mb-4 text-lg font-bold">Open Cases by Officer</h2>
+              <h2 className="mb-4 text-lg font-bold">Open Matters by Officer</h2>
               <div className="h-72">
                 {officerCasesChart.length > 0 ? (
                   <UniformBarChart data={officerCasesChart} colors={statusChartColors} />
@@ -2112,7 +2261,7 @@ function ReportsPage() {
               <Button variant="secondary" onClick={() => csvDownload('officer-workload.csv', officerData.map((r) => ({ officer: r.name, openCases: r.openCases, activities: r.activities })))}>CSV</Button>
             </div>
             <Table>
-              <thead><tr><Th>Officer</Th><Th>Role</Th><Th>Open Cases</Th><Th>Activities</Th></tr></thead>
+              <thead><tr><Th>Officer</Th><Th>Role</Th><Th>Open Matters</Th><Th>Activities</Th></tr></thead>
               <tbody>
                 {officerData.map((row) => (
                   <tr key={row.officerId} className={row.officerId === currentUser.id ? 'bg-maroon-50/60' : ''}>
@@ -2322,7 +2471,7 @@ function EntityDetailPage() {
         }
       />
       <div className="mb-4 flex gap-2 overflow-auto">
-        {[{ id: 'overview', label: 'Overview' }, { id: 'cases', label: `Cases (${cases.length})` }, { id: 'documents', label: `Documents (${docs.length})` }, { id: 'correspondence', label: `Correspondence (${corr.length})` }].map((tabItem) => (
+        {[{ id: 'overview', label: 'Overview' }, { id: 'cases', label: `Matters (${cases.length})` }, { id: 'documents', label: `Documents (${docs.length})` }, { id: 'correspondence', label: `Correspondence (${corr.length})` }].map((tabItem) => (
           <Button key={tabItem.id} variant={tab === tabItem.id ? 'primary' : 'secondary'} onClick={() => setTab(tabItem.id)}>{tabItem.label}</Button>
         ))}
         <Link className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-maroon-700 hover:text-maroon-800" to={`/search?focus=entity:${item.entityId}`}>Relationships</Link>
@@ -2339,13 +2488,13 @@ function EntityDetailPage() {
           <p className="mt-4 text-sm text-muted">{item.registrationDetails}</p>
         </Card>
       )}
-      {tab === 'cases' && (cases.length === 0 ? <EmptyState title="No linked cases" body="Cases registered against this entity will appear here." /> : (
-        <Table><thead><tr><Th>Case No</Th><Th>Title</Th><Th>Type</Th><Th>Status</Th><Th>Registered</Th></tr></thead><tbody>
+      {tab === 'cases' && (cases.length === 0 ? <EmptyState title="No linked matters" body="Matters registered against this entity will appear here." /> : (
+        <Table><thead><tr><Th>Matter No</Th><Th>Title</Th><Th>Division / Sub-type</Th><Th>Status</Th><Th>Registered</Th></tr></thead><tbody>
           {cases.map((caseItem) => (
             <tr key={caseItem.id}>
               <Td><RecordLink to={`/cases/${caseItem.id}`} tone="blue">{caseItem.caseNumber}</RecordLink></Td>
-              <Td className="font-bold">{caseItem.caseTitle}{caseItem.isConfidential && <span className="ml-2"><ConfidentialBadge /></span>}</Td>
-              <Td>{caseItem.caseType}</Td>
+              <Td className="font-bold">{caseItem.caseTitle}{(caseItem.confidentiality === 'Confidential' || caseItem.confidentiality === 'Executive Confidential') && <span className="ml-2"><ConfidentialBadge /></span>}</Td>
+              <Td><div className="text-xs text-muted">{caseItem.caseDivision}</div><div>{caseItem.caseSubType}</div></Td>
               <Td><StatusBadge status={caseItem.status} /></Td>
               <Td>{formatDate(caseItem.dateOpened)}</Td>
             </tr>

@@ -11,6 +11,7 @@ export const mockDocumentService: DocumentService = {
     await delay();
     const query = filter.query?.toLowerCase().trim();
     return db.documents
+      .filter((item) => filter.isTemplate === undefined ? true : filter.isTemplate ? item.isTemplate : !item.isTemplate)
       .filter((item) => !user || canAccessDocument(item, db.cases, user))
       .filter((item) => !filter.category || item.category === filter.category)
       .filter((item) => !filter.status || item.status === filter.status)
